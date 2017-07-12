@@ -206,6 +206,10 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
   fSingletons["tau_vertexMass_1"] = 0;
   fSingletons["tau_vertexEnergyRatio_1"] = 0;
   fSingletons["nProngs"] = 0;
+  fSingletons["nResonanceProngs"] = 0;
+  fSingletons["resonanceType"] = -1;
+  fSingletons["nB"] = 0; 
+  fSingletons["nC"] = 0;
 
   fCPFArrs["cpf_pt"] = new float[NCPF]; 
   fCPFArrs["cpf_eta"] = new float[NCPF]; 
@@ -308,16 +312,16 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
 
 void PerJetLoader::setupTreeZprime(TTree *iTree, std::string iJetLabel) {
   resetZprime();
-  std::stringstream pSiV;   pSiV << iJetLabel << "0_isHadronicV";
-  std::stringstream pSVM;   pSVM << iJetLabel << "0_vMatching";
-  std::stringstream pSVS;   pSVS << iJetLabel << "0_vSize";
-  std::stringstream pSpF;   pSpF << iJetLabel << "0_partonFlavor";
-  std::stringstream pShF;   pShF << iJetLabel << "0_hadronFlavor";
-  std::stringstream pSnC;   pSnC << iJetLabel << "0_nCharged";
-  std::stringstream pSnN;   pSnN << iJetLabel << "0_nNeutrals";
-  std::stringstream pSnP;   pSnP << iJetLabel << "0_nParticles";
-  std::stringstream pSvF;   pSvF << iJetLabel << "0_vertexFlavor"; 
-  std::stringstream pSvFI;   pSvFI << iJetLabel << "0_vertexFlavorInfo";
+  std::stringstream pSiV;   pSiV << iJetLabel << "_isHadronicV";
+  std::stringstream pSVM;   pSVM << iJetLabel << "_vMatching";
+  std::stringstream pSVS;   pSVS << iJetLabel << "_vSize";
+  std::stringstream pSpF;   pSpF << iJetLabel << "_partonFlavor";
+  std::stringstream pShF;   pShF << iJetLabel << "_hadronFlavor";
+  std::stringstream pSnC;   pSnC << iJetLabel << "_nCharged";
+  std::stringstream pSnN;   pSnN << iJetLabel << "_nNeutrals";
+  std::stringstream pSnP;   pSnP << iJetLabel << "_nParticles";
+  std::stringstream pSvF;   pSvF << iJetLabel << "_vertexFlavor"; 
+  std::stringstream pSvFI;   pSvFI << iJetLabel << "_vertexFlavorInfo";
 
   fTree = iTree;
   fTree->Branch(pSiV.str().c_str() ,&fisHadronicV         ,(pSiV.str()+"/I").c_str());
@@ -439,7 +443,6 @@ void PerJetLoader::fillVJet(int iN,
                             double iRho, 
                             unsigned int runNum)
 { 
-  int lBase = 3.*fN;
   int lMin = iObjects.size();
   if(iN < lMin) lMin = iN;
   for(int i0 = 0; i0 < lMin; i0++) { 
@@ -578,6 +581,8 @@ void PerJetLoader::fillVJet(int iN,
     fSingletons["tau_flightDistance2dSig_0"] = pAddJet->tau_flightDistance2dSig_0;
     fSingletons["tau_vertexMass_1"] = pAddJet->tau_vertexMass_1;
     fSingletons["tau_vertexEnergyRatio_1"] = pAddJet->tau_vertexEnergyRatio_1;
+    fSingletons["nC"] = (iObjects[i0]->vtxFlavor % 1000) / 100;
+    fSingletons["nB"] = (iObjects[i0]->vtxFlavor - (iObjects[i0]->vtxFlavor % 1000)) / 1000; 
 
     unsigned nG = fGens->GetEntriesFast();
     unsigned nP = 0;
@@ -614,6 +619,146 @@ void PerJetLoader::fillVJet(int iN,
       ++nP;
     }  
     fSingletons["nProngs"] = nP;
+
+    ///////
+    ///look for resonances
+    
+    // start with top 
+    unsigned target = 6;
+    for (unsigned iG = 0; iG != nG; ++iG) {
+      TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
+      if (abs(part->pdgId) != target)
+        continue; 
+      if (deltaR2(iObjects[i0]->eta, iObjects[i0]->phi, part->eta, part->phi) > dR2)
+        continue;
+
+      TGenParticle *pW = 0, *pB = 0;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+        if (child->parent != (int)iG)
+          continue;
+        switch (abs(child->pdgId)) {
+          case 5:
+            pB = child; 
+            break;
+          case 24:
+            pW = child; 
+            break;
+        };
+        if (pW && pB)
+          break;
+      }
+
+      if (!pW || !pB)
+        continue;
+      TGenParticle *pQ1 = 0, *pQ2 = 0;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+        if (abs(child->pdgId) > 5)
+          continue; 
+
+        bool foundW = false; 
+        // direct parent must be a W, but not necessarily the W directly from the t 
+        TGenParticle *parent = (TGenParticle*)((*fGens)[child->parent]);
+        if (abs(parent->pdgId) != 24)
+          continue; 
+
+        while (!foundW) {
+          if (parent == pW) {
+            foundW = true; 
+            if (!pQ1) 
+              pQ1 = child; 
+            else 
+              pQ2 = child;
+          } 
+          if (parent->parent < 0)
+            break; 
+          parent = (TGenParticle*)((*fGens)[parent->parent]);
+        }
+        if (pQ1 && pQ2)
+          break;
+      }
+
+      if (!(pB && pW && pQ1 && pQ2))
+        continue; 
+
+      // now calculate the top size 
+      double size = 0; 
+      for (auto *child : {pB, pQ1, pQ2}) {
+        size = TMath::Max(size,
+                          deltaR2(part->eta, part->phi, child->eta, child->phi));
+      }
+      if (size > 1.8 * dR2)
+        continue; 
+
+      fSingletons["nResonanceProngs"] = 3;
+      fSingletons["resonanceType"] = 4; // 0=q/g, 1=Z, 2=W, 3=H, 4=top
+    }
+
+    if (fSingletons["resonanceType"] < 0) {
+      std::vector<unsigned> targets = {23, 24, 25};
+      for (unsigned iG = 0; iG != nG; ++iG) {
+        TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
+        
+        auto found_target = std::find(targets.begin(),targets.end(),abs(part->pdgId));
+        if (found_target == targets.end())
+          continue; 
+        unsigned found_id = *found_target;
+
+        if (deltaR2(iObjects[i0]->eta, iObjects[i0]->phi, part->eta, part->phi) > dR2)
+          continue;
+
+        TGenParticle *pQ1 = 0, *pQ2 = 0;
+        for (unsigned jG = 0; jG != nG; ++jG) {
+          TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+          if (abs(child->pdgId) > 5)
+            continue; 
+
+          // direct parent must be a W, but not necessarily the W
+          TGenParticle *parent = (TGenParticle*)((*fGens)[child->parent]);
+          if (abs(parent->pdgId) != found_id)
+            continue; 
+
+          bool foundP = false;
+          while (!foundP) {
+            if (parent == part) {
+              foundP = true; 
+              if (!pQ1) 
+                pQ1 = child; 
+              else 
+                pQ2 = child;
+            } 
+            if (parent->parent < 0)
+              break; 
+            parent = (TGenParticle*)((*fGens)[parent->parent]);
+          }
+          if (pQ1 && pQ2)
+            break;
+        }
+
+        if (!(pQ1 && pQ2))
+          continue; 
+
+        // now calculate the size 
+        double size = 0; 
+        for (auto *child : {pQ1, pQ2}) {
+          size = TMath::Max(size,
+                            deltaR2(part->eta, part->phi, child->eta, child->phi));
+        }
+        if (size > 1.8 * dR2)
+          continue; 
+
+        fSingletons["nResonanceProngs"] = 2;
+        fSingletons["resonanceType"] = found_id - 22; // 0=q/g, 1=Z, 2=W, 3=H, 4=top
+      }
+    }
+
+    if (fSingletons["resonanceType"] < 0) {
+      fSingletons["resonanceType"] = 0;
+      fSingletons["nResonanceProngs"] = 1;
+    }
+
+    //////
 
     // fill neutral and charged PF candidates
     std::vector<TPFPart*> jetPFs;
