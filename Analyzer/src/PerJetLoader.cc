@@ -622,7 +622,7 @@ void PerJetLoader::fillVJet(int iN,
 
     ///////
     ///look for resonances
-    
+    fSingletons["resonanceType"] = -1;
     // start with top 
     unsigned target = 6;
     for (unsigned iG = 0; iG != nG; ++iG) {
@@ -656,6 +656,8 @@ void PerJetLoader::fillVJet(int iN,
         TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
         if (abs(child->pdgId) > 5)
           continue; 
+        if (child->parent < 0)
+          continue;
 
         bool foundW = false; 
         // direct parent must be a W, but not necessarily the W directly from the t 
@@ -699,7 +701,7 @@ void PerJetLoader::fillVJet(int iN,
       std::vector<unsigned> targets = {23, 24, 25};
       for (unsigned iG = 0; iG != nG; ++iG) {
         TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
-        
+
         auto found_target = std::find(targets.begin(),targets.end(),abs(part->pdgId));
         if (found_target == targets.end())
           continue; 
@@ -713,6 +715,8 @@ void PerJetLoader::fillVJet(int iN,
           TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
           if (abs(child->pdgId) > 5)
             continue; 
+          if (child->parent < 0)
+            continue;
 
           // direct parent must be a W, but not necessarily the W
           TGenParticle *parent = (TGenParticle*)((*fGens)[child->parent]);
