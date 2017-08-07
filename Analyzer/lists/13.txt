@@ -150,6 +150,7 @@ RSGravitonToQuarkQuark_kMpl01_M_6000_13TeV_pythia8
 RSGravitonToQuarkQuark_kMpl01_M_7000_13TeV_pythia8
 RSGravitonToQuarkQuark_kMpl01_M_8000_13TeV_pythia8
 RSGravitonToQuarkQuark_kMpl01_M_9000_13TeV_pythia8
+<<<<<<< HEAD
 RadionToWWToWlepWhad_narrow_M_1000_13TeV_madgraph
 RadionToWWToWlepWhad_narrow_M_1200_13TeV_madgraph
 RadionToWWToWlepWhad_narrow_M_1400_13TeV_madgraph
@@ -369,3 +370,6 @@ ZprimeToWW_width0p3_M_2000_13TeV_madgraph_pythia8
 ZprimeToWW_width0p3_M_3000_13TeV_madgraph_pythia8
 ZprimeToWW_width0p3_M_4000_13TeV_madgraph_pythia8
 ZprimeToWW_width0p3_M_800_13TeV_madgraph_pythia8
+=======
+TTJets_13TeV_amcatnloFXFX_pythia8
+>>>>>>> remotes/phil/dev-perjet
