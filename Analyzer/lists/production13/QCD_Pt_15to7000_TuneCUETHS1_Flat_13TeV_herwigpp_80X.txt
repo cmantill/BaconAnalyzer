@@ -1,0 +1,6 @@
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0000/Output_362.root
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0000/Output_390.root
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0000/Output_719.root
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0000/Output_792.root
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0000/Output_799.root
+/eos/cms/store/cmst3/group/monojet/production/13/QCD_Pt_15to7000_TuneCUETHS1_Flat_13TeV_herwigpp_80X/QCD_Pt-15to7000_TuneCUETHS1_Flat_13TeV_herwigpp/CRAB3/170715_213356/0001/Output_1004.root

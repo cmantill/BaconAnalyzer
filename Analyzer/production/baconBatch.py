@@ -24,7 +24,6 @@ from BaconAna.Utils.makeFilelist import *
 # 'maxevents, input, isGen
 # default_args = ['10000000','nothing.root','1'] #,output.root -> could add to analyzer
 default_args = []
-EOS = '/afs/cern.ch/project/eos/installation/0.3.84-aquamarine/bin/eos.select'
 
 # Options
 parser = OptionParser()
@@ -84,7 +83,7 @@ def write_job(exec_line, out, analyzer, i, n, j, eosout=''):
     # sub_file.write('cp -p %s .\n'%(os.path.abspath(analyzer)))
     sub_file.write('mkdir -p %s\n' % (out))
     if eosout:
-        sub_file.write('%s mkdir -p %s\n' % (EOS, eosout))
+        sub_file.write('mkdir -p %s\n' % (eosout))
 
     sub_file.write('if ( %s ) then\n' % exec_line)
     # sub_file.write('\t hadd -f Output_job%d.root %s/*.root \n'%(i,(out)))
@@ -349,11 +348,11 @@ for job_i in range(njobs):
                         m) + " ")  # LIST  OVER iterated arguments and produce and replace MULTIARG_i with arguemnt at i in list ?
             if options.eosoutdir:
                 if njobs_per_file > 1:                    
-                    job_exec += exec_line_i + '; %s cp %s %s/%s_job%d_file%d_subjob%d.root; ' % (
-                    EOS, outfile, options.eosoutdir, outfile, job_i, fil_i, subjob_i)
+                    job_exec += exec_line_i + '; cp %s %s/%s_job%d_file%d_subjob%d.root; ' % (
+                    outfile, options.eosoutdir, outfile, job_i, fil_i, subjob_i)
                 else:
-                    job_exec += exec_line_i + '; %s cp %s %s/%s_job%d_file%d.root; ' % (
-                    EOS, outfile, options.eosoutdir, outfile, job_i, fil_i)
+                    job_exec += exec_line_i + '; cp %s %s/%s_job%d_file%d.root; ' % (
+                    outfile, options.eosoutdir, outfile, job_i, fil_i)
             else:
                 if njobs_per_file > 1:
                     job_exec += exec_line_i + '; mv %s %s/%s_job%d_file%d_subjob%d.root; ' % (

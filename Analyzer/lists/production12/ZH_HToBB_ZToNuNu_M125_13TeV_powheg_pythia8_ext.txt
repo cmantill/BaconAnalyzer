@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/ZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8_ext/ZH_HToBB_ZToNuNu_M125_13TeV_powheg_pythia8_ext_0.root

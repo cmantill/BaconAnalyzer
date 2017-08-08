@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/JetHTRun2016C_23Sep2016_v1/JetHT/CRAB3/170108_122410/0002/Output_2374.root

@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/11/TTWJetsToLNu_13TeV/TTWJetsToLNu_13TeV_0.root

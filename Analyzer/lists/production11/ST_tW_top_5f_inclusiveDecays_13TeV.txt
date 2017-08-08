@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/11/ST_tW_top_5f_inclusiveDecays_13TeV/ST_tW_top_5f_inclusiveDecays_13TeV_0.root

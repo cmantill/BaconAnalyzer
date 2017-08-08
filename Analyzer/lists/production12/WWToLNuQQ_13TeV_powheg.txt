@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/WWToLNuQQ_13TeV_powheg/WWToLNuQQ_13TeV_powheg_0.root

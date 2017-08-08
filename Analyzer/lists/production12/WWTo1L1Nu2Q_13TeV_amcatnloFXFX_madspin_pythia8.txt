@@ -1,3 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8_0.root
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8_1.root
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/12/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8/WWTo1L1Nu2Q_13TeV_amcatnloFXFX_madspin_pythia8_2.root

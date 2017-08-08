@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/11/Axial_Mphi_1500_Mchi_200_gSM_0p25_gDM_1p0_v2_13TeV_powheg/Axial_Mphi_1500_Mchi_200_gSM_0p25_gDM_1p0_v2_13TeV_powheg_0.root

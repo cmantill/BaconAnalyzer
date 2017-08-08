@@ -1,1 +1,0 @@
-root://eoscms.cern.ch//store/cmst3/group/monojet/production/11/ST_s-channel_4f_leptonDecays_13TeV_amcatnlo/ST_s-channel_4f_leptonDecays_13TeV_amcatnlo_0.root
