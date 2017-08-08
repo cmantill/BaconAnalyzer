@@ -692,11 +692,11 @@ void PerJetLoader::fillVJet(int iN,
     TLorentzVector vTmp;
     for (unsigned iP = 0; iP != nP; ++iP) {
       TGenParticle *part = vPartons.at(iP);
-      fPartArrs["part_pt"][iP] = part->pt;
-      fPartArrs["part_eta"][iP] = part->eta;
-      fPartArrs["part_phi"][iP] = part->phi;
-      fPartArrs["part_m"][iP] = part->mass;
-      fPartArrs["part_pdgid"][iP] = part->pdgId;
+      fPartArrs["parton_pt"][iP] = part->pt;
+      fPartArrs["parton_eta"][iP] = part->eta;
+      fPartArrs["parton_phi"][iP] = part->phi;
+      fPartArrs["parton_m"][iP] = part->mass;
+      fPartArrs["parton_pdgid"][iP] = part->pdgId;
       vTmp.SetPtEtaPhiM(part->pt, part->eta, part->phi, part->mass);
       vPartonSum += vTmp;
     }
