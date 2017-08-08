@@ -9,6 +9,7 @@
 #define NCPF 50
 #define NIPF 100
 #define NSV 5
+#define NPART 6
 #define PI 3.141592654
 
 using namespace baconhep;
@@ -60,6 +61,8 @@ PerJetLoader::~PerJetLoader() {
     delete iter.second;
   for (auto &iter : fSVArrs) 
     delete iter.second;
+  for (auto &iter : fPartArrs) 
+    delete iter.second;
 }
 
 void PerJetLoader::reset() { 
@@ -87,6 +90,10 @@ void PerJetLoader::reset() {
     for (unsigned i = 0; i != NSV; ++i) 
       fSVArrs[iter.first][i] = 0;
   }
+  for (auto &iter : fPartArrs) {
+    for (unsigned i = 0; i != NPART; ++i) 
+      fPartArrs[iter.first][i] = 0;
+  }
   resetZprime();  
 }
 
@@ -103,6 +110,7 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
   fCPFArrs.clear();
   fIPFArrs.clear();
   fSVArrs.clear();
+  fPartArrs.clear();
 
   fSingletons["pt"] = 0;
   fSingletons["eta"] = 0;
@@ -210,6 +218,10 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
   fSingletons["resonanceType"] = -1;
   fSingletons["nB"] = 0; 
   fSingletons["nC"] = 0;
+  fSingletons["partonPt"] = 0;
+  fSingletons["partonEta"] = 0;
+  fSingletons["partonPhi"] = 0;
+  fSingletons["partonM"] = 0;
 
   fCPFArrs["cpf_pt"] = new float[NCPF]; 
   fCPFArrs["cpf_eta"] = new float[NCPF]; 
@@ -275,6 +287,12 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
   fSVArrs["sv_d3derr"] = new float[NSV];
   fSVArrs["sv_d3dsig"] = new float[NSV];
   fSVArrs["sv_enratio"] = new float[NSV];
+
+  fPartArrs["parton_pt"] = new float[NPART];
+  fPartArrs["parton_eta"] = new float[NPART];
+  fPartArrs["parton_phi"] = new float[NPART];
+  fPartArrs["parton_m"] = new float[NPART];
+  fPartArrs["parton_pdgid"] = new float[NPART];
   
   fTree = iTree;
 
@@ -304,7 +322,15 @@ void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) {
     std::stringstream bname;
     bname << iJetLabel << "_" << iter.first;
     std::stringstream bname2;
-    bname2 << bname.str() << "[" << NSV << "]/I";
+    bname2 << bname.str() << "[" << NSV << "]/F";
+    fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
+  }
+  fTree->Branch("n_part",&fN_part,"n_part/I");
+  for (auto &iter : fPartArrs) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    std::stringstream bname2;
+    bname2 << bname.str() << "[" << NPART << "]/F";
     fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
   }
 
@@ -587,7 +613,12 @@ void PerJetLoader::fillVJet(int iN,
     unsigned nG = fGens->GetEntriesFast();
     unsigned nP = 0;
     double dR2 = dR * dR;
+
     double threshold = 0.2 * iObjects[i0]->pt;
+    auto matchJet = [jet = iObjects[i0], dR2](TGenParticle *p) -> bool {
+      return deltaR2(jet->eta, jet->phi, p->eta, p->phi) < dR2;
+    };
+
     std::unordered_set<TGenParticle*> partons; // avoid double-counting
     for (unsigned iG = 0; iG != nG; ++iG) {
       TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
@@ -599,26 +630,80 @@ void PerJetLoader::fillVJet(int iN,
           apdgid != 13) 
         continue;
 
+      if (part->pt < threshold)
+        continue;
+
+      if (!matchJet(part))
+        continue;
+
       TGenParticle *parent = part;
-      bool foundParent = false;
+      TGenParticle *foundParent = NULL;
       while (parent->parent > 0) {
         parent = (TGenParticle*)((*fGens)[parent->parent]);
         if (partons.find(parent) != partons.end()) {
-          foundParent = true;
+          foundParent = parent;
           break;
         }
       }
-      if (foundParent)
-        continue;
 
-      if (part->pt < threshold)
-        continue;
-      if (deltaR2(iObjects[i0]->eta, iObjects[i0]->phi, part->eta, part->phi) > dR2)
-        continue;
-      partons.insert(part);
-      ++nP;
+      // check if the particle has a 1->2 splitting where the daughters satisfy
+      // the z-cut condition and match the jet cone
+      TGenParticle *dau1 = NULL, *dau2 = NULL;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)(*fGens)[jG];
+        if (child->parent != (int)iG)
+          continue; // only consider splittings from the current particle 
+
+        if (dau1)
+          dau2 = child; 
+        else 
+          dau1 = child; 
+        if (dau1 && dau2)
+          break; // ! assume it's not possible to have 1->N for N>2
+      }
+      if (dau1 && dau1->pt > threshold && matchJet(dau1) && 
+          dau2 && dau2->pt > threshold && matchJet(dau2)) {
+        if (foundParent) {
+          partons.erase(partons.find(foundParent)); // remove the ancestor
+        }
+        partons.insert(dau1);
+        partons.insert(dau2);
+      } else if (foundParent) {
+        // this means we found an ancestor parton, but this isn't the vertex that gives
+        // a large 1->2 splitting, so we can skip it as an intermediary
+        continue; 
+      } else {
+        // it passes all the checks and doesn't have an ancestor - keep it!
+        partons.insert(part);
+      }
+
     }  
+    nP = std::min((int)partons.size(), NPART);
     fSingletons["nProngs"] = nP;
+
+    std::vector<TGenParticle*> vPartons; vPartons.reserve(nP);
+    for (auto &iter : partons) 
+      vPartons.push_back(iter);
+    auto ptsort = [](TGenParticle *p1, TGenParticle *p2) -> bool {
+      return p1->pt > p2->pt;
+    };
+    std::sort(vPartons.begin(), vPartons.end(), ptsort);
+    TLorentzVector vPartonSum(0,0,0,0);
+    TLorentzVector vTmp;
+    for (unsigned iP = 0; iP != nP; ++iP) {
+      TGenParticle *part = vPartons.at(iP);
+      fPartArrs["part_pt"][iP] = part->pt;
+      fPartArrs["part_eta"][iP] = part->eta;
+      fPartArrs["part_phi"][iP] = part->phi;
+      fPartArrs["part_m"][iP] = part->mass;
+      fPartArrs["part_pdgid"][iP] = part->pdgId;
+      vTmp.SetPtEtaPhiM(part->pt, part->eta, part->phi, part->mass);
+      vPartonSum += vTmp;
+    }
+    fSingletons["partonPt"] = vPartonSum.Pt();
+    fSingletons["partonEta"] = vPartonSum.Eta();
+    fSingletons["partonPhi"] = vPartonSum.Phi();
+    fSingletons["partonM"] = vPartonSum.M();
 
     ///////
     ///look for resonances
