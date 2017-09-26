@@ -11,8 +11,14 @@
 #define NSV 5
 #define NPART 6
 #define PI 3.141592654
+#define MINPT 0.01
 
 using namespace baconhep;
+
+struct JetHistory {
+  int user_idx;
+  int child_idx;
+};
 
 PerJetLoader::PerJetLoader(TTree *iTree,std::string iJet,std::string iAddJet,std::string iJetCHS,std::string iAddJetCHS,int iN, bool iData) { 
   fVJets         = new TClonesArray("baconhep::TJet");
@@ -42,6 +48,15 @@ PerJetLoader::PerJetLoader(TTree *iTree,std::string iJet,std::string iAddJet,std
 
   const std::string cmssw_base = getenv("CMSSW_BASE");
   std::string cmssw_base_env = "${CMSSW_BASE}";
+
+  int activeAreaRepeats = 1;
+  double ghostArea = MINPT;
+  double ghostEtaMax = 7.0;
+  activeArea = new fastjet::GhostedAreaSpec(ghostEtaMax,activeAreaRepeats,ghostArea);
+  areaDef = new fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,*activeArea);
+
+  // jetDef = new fastjet::JetDefinition(fastjet::cambridge_algorithm, 0.8);
+  jetDef = new fastjet::JetDefinition(fastjet::antikt_algorithm, 0.8);
 }
 
 PerJetLoader::~PerJetLoader() { 
@@ -63,6 +78,9 @@ PerJetLoader::~PerJetLoader() {
     delete iter.second;
   for (auto &iter : fPartArrs) 
     delete iter.second;
+  delete activeArea;
+  delete areaDef;
+  delete jetDef;
 }
 
 void PerJetLoader::reset() { 
@@ -660,6 +678,8 @@ void PerJetLoader::fillVJet(int iN,
           dau1 = child; 
         if (dau1 && dau2)
           break; // ! assume it's not possible to have 1->N for N>2
+                 // ... this is not a good assumption in the miniaod-compressed
+                 // showering history
       }
       if (dau1 && dau1->pt > threshold && matchJet(dau1) && 
           dau2 && dau2->pt > threshold && matchJet(dau2)) {
@@ -851,12 +871,50 @@ void PerJetLoader::fillVJet(int iN,
 
     // fill neutral and charged PF candidates
     std::vector<TPFPart*> jetPFs;
-    for (auto idx : iObjects[i0]->pfCands) {
-      jetPFs.push_back( (TPFPart*)(fPFs->At(idx)) );
+    if (aktSort) {
+      TLorentzVector vtmp;
+      std::vector<fastjet::PseudoJet> pjs;
+      for (auto idx : iObjects[i0]->pfCands) {
+        TPFPart *part = ((TPFPart*)(fPFs->At(idx)));
+        vtmp.SetPtEtaPhiM(part->pt,part->eta,part->phi,part->m);
+        pjs.emplace_back(vtmp.Px(), vtmp.Py(), vtmp.Pz(), vtmp.E());
+        pjs.back().set_user_index(idx);
+      }
+      fastjet::ClusterSequenceArea seq(pjs, *jetDef, *areaDef);
+
+      auto &history = seq.history();
+      auto &jets = seq.jets();
+
+      std::vector<JetHistory> ordered_jets;
+      for (auto &h : history) {
+        // printf("%i %i %i %i ", h.parent1, h.parent2, h.child, h.jetp_index);
+        if (h.jetp_index >= 0) {
+          // printf("%.3f ", jets.at(h.jetp_index).perp());
+          auto &j = jets.at(h.jetp_index);
+          if (j.user_index() >= 0) {
+            // printf("known particle");
+            JetHistory jh;
+            jh.user_idx = j.user_index();
+            jh.child_idx = h.child;
+            ordered_jets.push_back(jh);
+          }
+        }
+        // printf("\n");
+      }
+      std::sort(ordered_jets.begin(),
+                ordered_jets.end(),
+                [](JetHistory x, JetHistory y) {return x.child_idx < y.child_idx;});
+      for (auto &jh : ordered_jets) {
+        jetPFs.push_back( (TPFPart*)(fPFs->At(jh.user_idx)) );
+      }
+    } else { // pT sort 
+      for (auto idx : iObjects[i0]->pfCands) {
+        jetPFs.push_back( (TPFPart*)(fPFs->At(idx)) );
+      }
+      std::sort(jetPFs.begin(),
+                jetPFs.end(),
+                [](TPFPart *x, TPFPart *y) {return x->pt * x->pup > y->pt * y->pup;});
     }
-    std::sort(jetPFs.begin(),
-              jetPFs.end(),
-              [](TPFPart *x, TPFPart *y) {return x->pt * x->pup > y->pt * y->pup;});
     int iCPF=0, iIPF=0;
     for (auto *pf : jetPFs) {
       if (pf->q && iCPF < NCPF) { // charged PF

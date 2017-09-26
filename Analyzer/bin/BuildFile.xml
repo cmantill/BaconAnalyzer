@@ -5,4 +5,5 @@
 <bin file="runZprime.cpp" name="runZprime"> </bin>
 <bin file="runQbert.cpp" name="runQbert"> </bin>
 <bin file="runGen.cpp" name="runGen"> </bin>
+<bin file="runGenScaled.cpp" name="runGenScaled"> </bin>
 <bin file="../src/NormalizeNtuple.cc" name="NormalizeNtuple"> </bin>

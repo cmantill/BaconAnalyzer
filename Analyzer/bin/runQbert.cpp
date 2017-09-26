@@ -109,7 +109,6 @@ int main( int argc, char **argv ) {
   std::cout << minEvent << " min event" << std::endl;
   std::cout << maxEvent << " max event" << std::endl;  
   for(int i0 = minEvent; i0 < maxEvent; i0++) {
-    //for(int i0 = 0; i0 < int(10000); i0++){ // for testing
     if (i0%1000 == 0) std::cout << i0 << " events processed " << std::endl;
     // Check GenInfo
     fEvt->load(i0);
@@ -172,6 +171,7 @@ int main( int argc, char **argv ) {
 
 //    lOut->Fill(); // fill is done in fVJet8 now
     neventstest++;
+    break;
   }
   std::cout << neventstest << std::endl;
   std::cout << lTree->GetEntriesFast() << std::endl;

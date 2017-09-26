@@ -5,7 +5,7 @@
 
 using namespace baconhep;
 
-GenPartLoader::GenPartLoader(TTree *iTree,bool iHadrons) { 
+GenPartLoader::GenPartLoader(TTree *iTree,bool iHadrons/*=true*/) { 
   fGenInfo  = new TGenEventInfo();
   iTree->SetBranchAddress("GenEvtInfo",       &fGenInfo);
   fGenInfoBr  = iTree->GetBranch("GenEvtInfo");
@@ -43,6 +43,11 @@ void GenPartLoader::setupTree(TTree *iTree,float iXSIn,float iRadius) {
   fLabels.push_back("jet_eta");
   fLabels.push_back("jet_phi");
   fLabels.push_back("jet_mass");
+  fLabels.push_back("jet_msd");
+  fLabels.push_back("jet_t32");
+  fLabels.push_back("jet_t21");
+  fLabels.push_back("jet_parton_t32");
+  fLabels.push_back("jet_parton_t21");
   fPartonBase = fLabels.size();
   fLabels.push_back("parton_pt");
   fLabels.push_back("parton_eta");

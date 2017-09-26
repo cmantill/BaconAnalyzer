@@ -17,6 +17,15 @@
 #include "CondFormats/JetMETObjects/interface/JetCorrectionUncertainty.h"
 #include "JetMETCorrections/Modules/interface/JetResolution.h"
 
+#include "fastjet/PseudoJet.hh"
+#include "fastjet/JetDefinition.hh"
+#include "fastjet/GhostedAreaSpec.hh"
+#include "fastjet/AreaDefinition.hh"
+#include "fastjet/ClusterSequenceArea.hh"
+#include "fastjet/contrib/SoftDrop.hh"
+#include "fastjet/contrib/NjettinessPlugin.hh"
+#include "fastjet/contrib/MeasureDefinition.hh"
+
 // B-tag scale factors
 #include "SJBTagUnc.hh"
 #include "CondFormats/BTauObjects/interface/BTagEntry.h"
@@ -76,7 +85,13 @@ public:
 				    bool printDebug = false);
   TRandom3* r;
 
+  bool aktSort = true; 
+
 protected: 
+  fastjet::AreaDefinition *areaDef = 0;
+  fastjet::GhostedAreaSpec *activeArea = 0;
+  fastjet::JetDefinition *jetDef = 0;
+  
   TClonesArray *fVJets;
   TBranch      *fVJetBr;
   TClonesArray *fVAddJets;

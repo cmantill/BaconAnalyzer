@@ -1,5 +1,5 @@
-#ifndef GenPartLoader_H
-#define GenPartLoader_H
+#ifndef GenScaledPartLoader_H
+#define GenScaledPartLoader_H
 #include "Utils.hh"
 #include "TTree.h"
 #include "TBranch.h"
@@ -8,27 +8,30 @@
 #include "BaconAna/DataFormats/interface/TGenEventInfo.hh"
 #include "BaconAna/DataFormats/interface/TGenParticle.hh"
 
+#include "fastjet/PseudoJet.hh"
+#include "fastjet/JetDefinition.hh"
+#include "fastjet/GhostedAreaSpec.hh"
+#include "fastjet/AreaDefinition.hh"
+#include "fastjet/ClusterSequenceArea.hh"
+#include "fastjet/contrib/SoftDrop.hh"
+#include "fastjet/contrib/NjettinessPlugin.hh"
+#include "fastjet/contrib/MeasureDefinition.hh"
+
 using namespace baconhep;
 
-class GenPartLoader { 
+class GenScaledPartLoader { 
 public:
-  GenPartLoader(TTree *iTree,bool iHadrons=true);
-  ~GenPartLoader();
+  GenScaledPartLoader(TTree *iTree,bool iHadrons=true);
+  ~GenScaledPartLoader();
   void reset();
   void setupTree(TTree *iTree,float iXSIn,float iRadius);
   void load (int iEvent);
-  void chain(TJet *iJet, float iZCut);
+  void chain(float iZCut);
   float deltaR(float iPhi0,float iEta0,float iPhi1,float iEta1);
-  float mother(TGenParticle* iPart, std::vector<TGenParticle*> &iPartons);
-  int  find(std::vector<TGenParticle*> &iPartons,TGenParticle* iPart);
   bool isNeutrino(int iPdgId);
   float  phi(float iPhi0,float iPhi1);
   int  simplifiedPdg(int iPdgId);
-  int  parentid(TGenParticle *iPart,bool iOutput=false);
   bool leptonVeto();
-  //Debug
-  void parentage(TGenParticle* iPart,TJet *iJet,std::vector<TGenParticle*> &iPartons);
-  void printVtx(TGenParticle* iPart,TJet *iJet);  
 
   TClonesArray  *fGens;
   TBranch       *fGenBr;
@@ -38,14 +41,20 @@ public:
   float fWeight;
   std::vector<std::string> fLabels;
   std::vector<std::vector<float> > fVars;
-  std::unordered_set<unsigned> fPartons;
+
+  fastjet::AreaDefinition *areaDef=0;
+  fastjet::GhostedAreaSpec *activeArea=0;
+  fastjet::JetDefinition *jetDefCA=0;
+  fastjet::JetDefinition *jetDefAK=0;
+  fastjet::contrib::SoftDrop *sd=0;
+  fastjet::contrib::Njettiness *tau=0;
 
 protected: 
   TTree         *fTree;
   int fPartonBase;
   int fParticleBase;
   float fXS;
-  float fRadius=0.8;
+  float fRadius;
   float fDRHeavy;
 };
 #endif
