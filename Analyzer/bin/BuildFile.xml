@@ -1,9 +1,13 @@
 <use name="BaconAna/DataFormats"/>
 <use name="BaconAnalyzer/Analyzer"/>
+<use name="fastjet"/>
+<use name="fastjet-contrib"/>
 <use name="root"/>
 <flags CXXFLAGS="-g -Wall"/>
 <bin file="runZprime.cpp" name="runZprime"> </bin>
 <bin file="runQbert.cpp" name="runQbert"> </bin>
 <bin file="runGen.cpp" name="runGen"> </bin>
 <bin file="runGenScaled.cpp" name="runGenScaled"> </bin>
+<bin file="runJetsToJUNIPR.cpp" name="runJetsToJUNIPR"> </bin>
+<bin file="runPFJetsToJUNIPR.cpp" name="runPFJetsToJUNIPR"> </bin>
 <bin file="../src/NormalizeNtuple.cc" name="NormalizeNtuple"> </bin>
