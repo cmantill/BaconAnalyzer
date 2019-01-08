@@ -152,9 +152,8 @@ if __name__ == '__main__':
     
     xsec = 1
 
-    eosOutDir = '/eos/cms/store/group/phys_exotica/monotop/qbert/v3/'
+    eosOutDir = 'eos/cms/store/group/phys_exotica/dijet/dazsle/'
 
-    
     optionsDataMc = {
         'mc': "Output.root --passSumEntries 5:Events -a 6:subjob_i -a 7:%i -a 2:mc -a 3:none  -n 8000 -q 2nw --njobs-per-file %d"%(options.njobs_per_file,options.njobs_per_file),
         'data': "Output.root -a 5:1 -a 6:subjob_i -a 7:%i -a 2:data -a 3:%s -n 8000 -q 1nd --njobs-per-file %d"%(options.njobs_per_file,jsonPrompt,options.njobs_per_file),        
