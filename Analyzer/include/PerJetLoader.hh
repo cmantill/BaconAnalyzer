@@ -87,12 +87,15 @@ public:
 
   bool aktSort = true; 
 
+  TClonesArray *fVJets;
+  TClonesArray *fPFs;
+
 protected: 
   fastjet::AreaDefinition *areaDef = 0;
   fastjet::GhostedAreaSpec *activeArea = 0;
   fastjet::JetDefinition *jetDef = 0;
   
-  TClonesArray *fVJets;
+  //TClonesArray *fVJets;
   TBranch      *fVJetBr;
   TClonesArray *fVAddJets;
   TBranch      *fVAddJetBr;
@@ -102,7 +105,7 @@ protected:
   TBranch      *fVAddJetBrCHS;
   TClonesArray *fGens;
   TBranch      *fGenBr;
-  TClonesArray *fPFs;
+  //TClonesArray *fPFs;
   TBranch      *fPFBr;
   TClonesArray *fSVs;
   TBranch      *fSVBr;
