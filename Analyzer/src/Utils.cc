@@ -462,6 +462,13 @@ bool passVeto(double iEta,double iPhi,double idR, std::vector<TLorentzVector> &i
   }
   return pMatch;
 }
+//--------------------------------------------------------------------------------------------------                                                                                                            
+double deltaR2(double iEta, double iPhi, double jEta, double jPhi) {
+  double pDEta = iEta - jEta;
+  double pDPhi = iPhi - jPhi;
+  if(fabs(pDPhi) > 2.*TMath::Pi()-fabs(pDPhi)) pDPhi =  2.*TMath::Pi()-fabs(pDPhi);
+  return pDPhi*pDPhi + pDEta*pDEta;
+}
 //--------------------------------------------------------------------------------------------------
 void setupNtuple(std::string iHeader,TTree *iTree,int iN,std::vector<double> &iVals) {
   for(int i0 = 0; i0 < iN; i0++) { 
