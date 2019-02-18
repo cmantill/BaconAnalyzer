@@ -96,7 +96,10 @@ int main( int argc, char **argv ) {
   fJet4      = new JetLoader     (lTree, isData);  
   fVJet8     = new VJetLoader    (lTree,"AK8Puppi","AddAK8Puppi",3, isData);  
   fVJet15    = new VJetLoader    (lTree,"CA15Puppi","AddCA15Puppi",3, isData);
-  if(lOption.compare("data")!=0) fGen      = new GenLoader     (lTree);                 
+  if(lOption.compare("data")!=0) {
+    fGen      = new GenLoader     (lTree);                 
+    if(lOption.compare("ps")==0)   fGen->setPSWeights(lTree);
+  }
 
   TFile *lFile = TFile::Open(lOutput.c_str(),"RECREATE");
   TTree *lOut  = new TTree("Events","Events");
@@ -146,6 +149,9 @@ int main( int argc, char **argv ) {
       lWeight = fGen->fWeight;
       passJson = 1;
       Pu->Fill(fEvt->fPu); // no weight?                                                                                          
+      if(lOption.compare("ps")==0) {
+	fGen->loadPSWeights(i0); fGen->fillPSWeights();
+      }
     }
     else{
       if(passEvent(fEvt->fRun,fEvt->fLumi)) { passJson = 1;}
