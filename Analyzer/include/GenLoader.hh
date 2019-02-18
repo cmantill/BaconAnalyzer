@@ -4,6 +4,7 @@
 #include "TLorentzVector.h"
 #include "BaconAna/DataFormats/interface/TGenEventInfo.hh"
 #include "BaconAna/DataFormats/interface/TGenParticle.hh"
+#include "BaconAna/DataFormats/interface/TPSWeight.hh"
 
 using namespace baconhep;
 
@@ -40,11 +41,17 @@ public:
   void saveTTbarType();
   float computeTTbarCorr();
 
+  // ps weights (only for some samples)
+  void setPSWeights(TTree *iTree);
+  void loadPSWeights(int iEvent);
+  void fillPSWeights();
+
   TClonesArray  *fGens;
   TBranch       *fGenBr;
   TGenEventInfo *fGenInfo;
   TBranch       *fGenInfoBr;
-
+  TClonesArray  *fPSWeights;
+  TBranch       *fPSWeightBr;
   float fWeight;
   float fBosonPt;
   float fBosonPhi;
@@ -75,6 +82,8 @@ public:
   std::vector<std::vector<float>> fgenHDauM;
   std::vector<std::vector<float>> fgenHDauId;  
   std::vector<std::vector<float>> fgenHDauDecay;
+
+  std::vector<float> fgenPSWeight;
 protected: 
   TTree         *fTree;
 };

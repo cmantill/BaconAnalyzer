@@ -653,3 +653,28 @@ float GenLoader::computeTTbarCorr() {
   fTopPtWeight = sqrt(w1*w2);
   return sqrt(w1*w2);
 }
+void GenLoader::setPSWeights(TTree *iTree) {
+  fPSWeights  = new TClonesArray("baconhep::TPSWeight");
+  iTree->SetBranchAddress("PSWeight", &fPSWeights);
+  fPSWeightBr  = iTree->GetBranch("PSWeight");
+  fgenPSWeight.clear();
+  for(int i1 = 0; i1 < 20; i1++ ) {
+    fgenPSWeight.push_back(-99);
+  }
+  std::cout << "psweight " << fgenPSWeight.size() << std::endl;
+  for(int i0 = 0; i0 < int(fgenPSWeight.size()); i0++) {
+    std::stringstream pSPSWeight; pSPSWeight << "psWeight" << i0;
+    std::cout << "psweightname " << pSPSWeight.str() << " " << fgenPSWeight[i0] << std::endl;
+    iTree->Branch(pSPSWeight.str().c_str()   ,&fgenPSWeight[i0]   ,(pSPSWeight.str()+"/F").c_str());
+  }
+}
+void GenLoader::loadPSWeights(int iEvent) {
+  fPSWeights    ->Clear();
+  fPSWeightBr   ->GetEntry(iEvent);
+}
+void GenLoader::fillPSWeights(){
+  for(int i1 = 0; i1 < int(fgenPSWeight.size()); i1++) {
+    TPSWeight *psweight = (TPSWeight*)((*fPSWeights)[i1]);
+    fgenPSWeight[i1] = psweight->weight;
+  }
+}
