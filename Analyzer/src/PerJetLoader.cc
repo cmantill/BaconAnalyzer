@@ -1,0 +1,1327 @@
+#include "../include/PerJetLoader.hh"
+#include <cmath>
+#include <iostream> 
+
+#include <string>
+#include <sstream>
+#include <unordered_set>
+
+#define NCPF 50
+#define NIPF 100
+#define NSV 5
+#define NPART 6
+#define PI 3.141592654
+#define MINPT 0.01
+
+using namespace baconhep;
+
+struct JetHistory {
+  int user_idx;
+  int child_idx;
+};
+
+PerJetLoader::PerJetLoader(TTree *iTree,std::string iJet,std::string iAddJet,std::string iJetCHS,std::string iAddJetCHS,int iN, bool iData) { 
+  fVJets         = new TClonesArray("baconhep::TJet");
+  fVAddJets      = new TClonesArray("baconhep::TAddJet");
+  fGens         = new TClonesArray("baconhep::TGenParticle");
+  fPFs = new TClonesArray("baconhep::TPFPart");
+  fSVs = new TClonesArray("baconhep::TSVtx");
+
+  iTree->SetBranchAddress(iJet.c_str(),       &fVJets);
+  iTree->SetBranchAddress(iAddJet.c_str(),    &fVAddJets);
+  iTree->SetBranchAddress("GenParticle", &fGens);
+  iTree->SetBranchAddress("PFPart", &fPFs);
+  iTree->SetBranchAddress("SV", &fSVs);
+
+  fVJetBr        = iTree->GetBranch(iJet.c_str());
+  fVAddJetBr     = iTree->GetBranch(iAddJet.c_str());
+  fGenBr         = iTree->GetBranch("GenParticle");
+  fPFBr = iTree->GetBranch("PFPart");
+  fSVBr = iTree->GetBranch("SV");
+
+  fN = iN;
+
+  isData = iData;  
+  loadJECs_Rereco(isData);
+
+  r = new TRandom3(1993);
+
+  const std::string cmssw_base = getenv("CMSSW_BASE");
+  std::string cmssw_base_env = "${CMSSW_BASE}";
+
+  int activeAreaRepeats = 1;
+  double ghostArea = MINPT;
+  double ghostEtaMax = 7.0;
+  activeArea = new fastjet::GhostedAreaSpec(ghostEtaMax,activeAreaRepeats,ghostArea);
+  areaDef = new fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,*activeArea);
+
+  // jetDef = new fastjet::JetDefinition(fastjet::cambridge_algorithm, 0.8);
+  jetDef = new fastjet::JetDefinition(fastjet::antikt_algorithm, 0.8);
+}
+
+PerJetLoader::~PerJetLoader() { 
+  delete fVJets;
+  delete fVJetBr;
+  delete fVAddJets;
+  delete fVAddJetBr;
+  delete fGens;
+  delete fGenBr;
+  delete fPFs;
+  delete fPFBr;
+  delete fSVs;
+  delete fSVBr;
+  for (auto &iter : fCPFArrs) 
+    delete iter.second;
+  for (auto &iter : fIPFArrs) 
+    delete iter.second;
+  for (auto &iter : fSVArrs) 
+    delete iter.second;
+  for (auto &iter : fPartArrs) 
+    delete iter.second;
+  delete activeArea;
+  delete areaDef;
+  delete jetDef;
+}
+
+void PerJetLoader::reset() { 
+  fNLooseVJets        = 0;
+  fNTightVJets        = 0;  
+  for(int i0 = 0; i0 < int(fisTightVJet.size()); i0++) fisTightVJet[i0] = -999;
+  selectedVJets.clear();
+  fLooseVJets.clear();
+  x1List.clear();
+  x2List.clear();
+  x3List.clear();    
+  for (auto &iter : fSingletons) {
+    fSingletons[iter.first] = 0;
+  }
+  fN_cpf = 0; fN_ipf = 0; fN_sv = 0;
+  for (auto &iter : fCPFArrs) {
+    for (unsigned i = 0; i != NCPF; ++i) 
+      fCPFArrs[iter.first][i] = 0;
+  }
+  for (auto &iter : fIPFArrs) {
+    for (unsigned i = 0; i != NIPF; ++i) 
+      fIPFArrs[iter.first][i] = 0;
+  }
+  for (auto &iter : fSVArrs) {
+    for (unsigned i = 0; i != NSV; ++i) 
+      fSVArrs[iter.first][i] = 0;
+  }
+  for (auto &iter : fPartArrs) {
+    for (unsigned i = 0; i != NPART; ++i) 
+      fPartArrs[iter.first][i] = 0;
+  }
+  resetZprime();  
+}
+
+void PerJetLoader::resetZprime() {
+  fvSize              = -999;
+  fvMatching          = -999;
+  fisHadronicV        = 0;
+}
+
+void PerJetLoader::setupTree(TTree *iTree, std::string iJetLabel) { 
+  reset();
+
+  fSingletons.clear();
+  fCPFArrs.clear();
+  fIPFArrs.clear();
+  fSVArrs.clear();
+  fPartArrs.clear();
+
+  fSingletons["pt"] = 0;
+  fSingletons["eta"] = 0;
+  fSingletons["phi"] = 0;
+  fSingletons["mass"] = 0;
+  fSingletons["csv"] = 0;
+  fSingletons["CHF"] = 0;
+  fSingletons["NHF"] = 0;
+  fSingletons["NEMF"] = 0;
+  fSingletons["tau21"] = 0;
+  fSingletons["tau32"] = 0;
+  fSingletons["msd"] = 0;
+  fSingletons["rho"] = 0;
+  fSingletons["minsubcsv"] = 0;
+  fSingletons["maxsubcsv"] = 0;
+  fSingletons["doublecsv"] = 0;
+  fSingletons["doublesub"] = 0;
+  fSingletons["ptraw"] = 0;
+  fSingletons["genpt"] = 0;
+  fSingletons["e2_b1"] = 0; // Correlation function inputs beta=1
+  fSingletons["e3_b1"] = 0;
+  fSingletons["e3_v1_b1"] = 0;
+  fSingletons["e3_v2_b1"] = 0;
+  fSingletons["e4_v1_b1"] = 0;
+  fSingletons["e4_v2_b1"] = 0;
+  fSingletons["e2_b2"] = 0; // Correlation function inputs beta=2
+  fSingletons["e3_b2"] = 0;
+  fSingletons["e3_v1_b2"] = 0;
+  fSingletons["e3_v2_b2"] = 0;
+  fSingletons["e4_v1_b2"] = 0;
+  fSingletons["e4_v2_b2"] = 0;
+  fSingletons["e2_sdb1"] = 0; // Correlation function inputs beta=1 soft-dropped 
+  fSingletons["e3_sdb1"] = 0;
+  fSingletons["e3_v1_sdb1"] = 0;
+  fSingletons["e3_v2_sdb1"] = 0;
+  fSingletons["e4_v1_sdb1"] = 0;
+  fSingletons["e4_v2_sdb1"] = 0;
+  fSingletons["e2_sdb2"] = 0; // Correlation function inputs beta=2 soft-dropped 
+  fSingletons["e3_sdb2"] = 0;
+  fSingletons["e3_v1_sdb2"] = 0;
+  fSingletons["e3_v2_sdb2"] = 0;
+  fSingletons["e4_v1_sdb2"] = 0;
+  fSingletons["e4_v2_sdb2"] = 0;
+  fSingletons["N2sdb1"] = 0; // 2-prong ECFs observables
+  fSingletons["N2sdb2"] = 0;
+  fSingletons["M2sdb1"] = 0;
+  fSingletons["M2sdb2"] = 0;
+  fSingletons["D2sdb1"] = 0;
+  fSingletons["D2sdb2"] = 0;
+  fSingletons["N2b1"] = 0;
+  fSingletons["N2b2"] = 0;
+  fSingletons["M2b1"] = 0;
+  fSingletons["M2b2"] = 0;
+  fSingletons["D2b1"] = 0;
+  fSingletons["D2b2"] = 0;
+  fSingletons["pt_old"] = 0;
+  fSingletons["pt_JESUp"] = 0;
+  fSingletons["pt_JESDown"] = 0;
+  fSingletons["pt_JERUp"] = 0;
+  fSingletons["pt_JERDown"] = 0;
+  fSingletons["e2_sdb05"] = 0; // Correlation function inputs beta=0.5 soft-dropped 
+  fSingletons["e3_sdb05"] = 0;
+  fSingletons["e3_v1_sdb05"] = 0;
+  fSingletons["e3_v2_sdb05"] = 0;
+  fSingletons["e4_v1_sdb05"] = 0;
+  fSingletons["e4_v2_sdb05"] = 0;
+  fSingletons["e2_sdb4"] = 0; // Correlation function inputs beta=4 soft-dropped 
+  fSingletons["e3_sdb4"] = 0;
+  fSingletons["e3_v1_sdb4"] = 0;
+  fSingletons["e3_v2_sdb4"] = 0;
+  fSingletons["e4_v1_sdb4"] = 0;
+  fSingletons["e4_v2_sdb4"] = 0;
+  fSingletons["flavour"] = 0;
+  fSingletons["nbHadrons"] = 0;
+  fSingletons["nSV"] = 0;
+  fSingletons["jetNTracks"] = 0;
+  fSingletons["tau_flightDistance2dSig_1"] = 0;
+  fSingletons["SubJet_csv"] = 0;
+  fSingletons["z_ratio"] = 0;
+  fSingletons["trackSipdSig_3"] = 0;
+  fSingletons["trackSipdSig_2"] = 0;
+  fSingletons["trackSipdSig_1"] = 0;
+  fSingletons["trackSipdSig_0"] = 0;
+  fSingletons["trackSipdSig_1_0"] = 0;
+  fSingletons["trackSipdSig_0_0"] = 0;
+  fSingletons["trackSipdSig_1_1"] = 0;
+  fSingletons["trackSipdSig_0_1"] = 0;
+  fSingletons["trackSip2dSigAboveCharm_0"] = 0;
+  fSingletons["trackSip2dSigAboveBottom_0"] = 0;
+  fSingletons["trackSip2dSigAboveBottom_1"] = 0;
+  fSingletons["tau1_trackEtaRel_0"] = 0;
+  fSingletons["tau1_trackEtaRel_1"] = 0;
+  fSingletons["tau1_trackEtaRel_2"] = 0;
+  fSingletons["tau0_trackEtaRel_0"] = 0;
+  fSingletons["tau0_trackEtaRel_1"] = 0;
+  fSingletons["tau0_trackEtaRel_2"] = 0;
+  fSingletons["tau_vertexMass_0"] = 0;
+  fSingletons["tau_vertexEnergyRatio_0"] = 0;
+  fSingletons["tau_vertexDeltaR_0"] = 0;
+  fSingletons["tau_flightDistance2dSig_0"] = 0;
+  fSingletons["tau_vertexMass_1"] = 0;
+  fSingletons["tau_vertexEnergyRatio_1"] = 0;
+  fSingletons["nProngs"] = 0;
+  fSingletons["nResonanceProngs"] = 0;
+  fSingletons["resonanceType"] = -1;
+  fSingletons["nB"] = 0; 
+  fSingletons["nC"] = 0;
+  fSingletons["partonPt"] = 0;
+  fSingletons["partonEta"] = 0;
+  fSingletons["partonPhi"] = 0;
+  fSingletons["partonM"] = 0;
+
+  fCPFArrs["cpf_pt"] = new float[NCPF]; 
+  fCPFArrs["cpf_eta"] = new float[NCPF]; 
+  fCPFArrs["cpf_phi"] = new float[NCPF]; 
+  fCPFArrs["cpf_m"] = new float[NCPF]; 
+  fCPFArrs["cpf_e"] = new float[NCPF]; 
+  fCPFArrs["cpf_q"] = new float[NCPF]; 
+  fCPFArrs["cpf_pfType"] = new float[NCPF]; 
+  fCPFArrs["cpf_vtxID"] = new float[NCPF]; 
+  fCPFArrs["cpf_trkChi2"] = new float[NCPF]; 
+  fCPFArrs["cpf_pup"] = new float[NCPF]; 
+  fCPFArrs["cpf_vtxChi2"] = new float[NCPF]; 
+  fCPFArrs["cpf_ecalE"] = new float[NCPF]; 
+  fCPFArrs["cpf_hcalE"] = new float[NCPF]; 
+  fCPFArrs["cpf_d0"] = new float[NCPF]; 
+  fCPFArrs["cpf_dz"] = new float[NCPF]; 
+  fCPFArrs["cpf_d0Err"] = new float[NCPF]; 
+  fCPFArrs["cpf_dptdpt"] = new float[NCPF]; 
+  fCPFArrs["cpf_detadeta"] = new float[NCPF]; 
+  fCPFArrs["cpf_dphidphi"] = new float[NCPF]; 
+  fCPFArrs["cpf_dxydxy"] = new float[NCPF]; 
+  fCPFArrs["cpf_dzdz"] = new float[NCPF]; 
+  fCPFArrs["cpf_dxydz"] = new float[NCPF]; 
+  fCPFArrs["cpf_dphidxy"] = new float[NCPF]; 
+  fCPFArrs["cpf_dlambdadz"] = new float[NCPF]; 
+
+  fIPFArrs["ipf_pt"] = new float[NIPF]; 
+  fIPFArrs["ipf_eta"] = new float[NIPF]; 
+  fIPFArrs["ipf_phi"] = new float[NIPF]; 
+  fIPFArrs["ipf_m"] = new float[NIPF]; 
+  fIPFArrs["ipf_e"] = new float[NIPF]; 
+  fIPFArrs["ipf_pfType"] = new float[NIPF]; 
+  fIPFArrs["ipf_pup"] = new float[NIPF]; 
+  fIPFArrs["ipf_ecalE"] = new float[NIPF]; 
+  fIPFArrs["ipf_hcalE"] = new float[NIPF]; 
+  fIPFArrs["ipf_d0"] = new float[NIPF]; 
+  fIPFArrs["ipf_dz"] = new float[NIPF]; 
+  fIPFArrs["ipf_d0Err"] = new float[NIPF]; 
+  fIPFArrs["ipf_dptdpt"] = new float[NIPF]; 
+  fIPFArrs["ipf_detadeta"] = new float[NIPF]; 
+  fIPFArrs["ipf_dphidphi"] = new float[NIPF]; 
+  fIPFArrs["ipf_dxydxy"] = new float[NIPF]; 
+  fIPFArrs["ipf_dzdz"] = new float[NIPF]; 
+  fIPFArrs["ipf_dxydz"] = new float[NIPF]; 
+  fIPFArrs["ipf_dphidxy"] = new float[NIPF]; 
+  fIPFArrs["ipf_dlambdadz"] = new float[NIPF]; 
+
+  fSVArrs["sv_pt"] = new float[NSV];
+  fSVArrs["sv_eta"] = new float[NSV];
+  fSVArrs["sv_phi"] = new float[NSV];
+  fSVArrs["sv_mass"] = new float[NSV];
+  fSVArrs["sv_etarel"] = new float[NSV];
+  fSVArrs["sv_phirel"] = new float[NSV];
+  fSVArrs["sv_deltaR"] = new float[NSV];
+  fSVArrs["sv_ntracks"] = new float[NSV];
+  fSVArrs["sv_chi2"] = new float[NSV];
+  fSVArrs["sv_ndf"] = new float[NSV];
+  fSVArrs["sv_normchi2"] = new float[NSV];
+  fSVArrs["sv_dxy"] = new float[NSV];
+  fSVArrs["sv_dxyerr"] = new float[NSV];
+  fSVArrs["sv_dxysig"] = new float[NSV];
+  fSVArrs["sv_d3d"] = new float[NSV];
+  fSVArrs["sv_d3derr"] = new float[NSV];
+  fSVArrs["sv_d3dsig"] = new float[NSV];
+  fSVArrs["sv_enratio"] = new float[NSV];
+
+  fPartArrs["parton_pt"] = new float[NPART];
+  fPartArrs["parton_eta"] = new float[NPART];
+  fPartArrs["parton_phi"] = new float[NPART];
+  fPartArrs["parton_m"] = new float[NPART];
+  fPartArrs["parton_pdgid"] = new float[NPART];
+  
+  fTree = iTree;
+
+  for (auto &iter : fSingletons) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    fTree->Branch(bname.str().c_str(), &(iter.second), (bname.str()+"/F").c_str());
+  }
+  fTree->Branch("n_cpf",&fN_cpf,"n_cpf/I");
+  for (auto &iter : fCPFArrs) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    std::stringstream bname2;
+    bname2 << bname.str() << "[" << NCPF << "]/F";
+    fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
+  }
+  fTree->Branch("n_ipf",&fN_ipf,"n_ipf/I");
+  for (auto &iter : fIPFArrs) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    std::stringstream bname2;
+    bname2 << bname.str() << "[" << NIPF << "]/F";
+    fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
+  }
+  fTree->Branch("n_sv",&fN_sv,"n_sv/I");
+  for (auto &iter : fSVArrs) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    std::stringstream bname2;
+    bname2 << bname.str() << "[" << NSV << "]/F";
+    fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
+  }
+  fTree->Branch("n_part",&fN_part,"n_part/I");
+  for (auto &iter : fPartArrs) {
+    std::stringstream bname;
+    bname << iJetLabel << "_" << iter.first;
+    std::stringstream bname2;
+    bname2 << bname.str() << "[" << NPART << "]/F";
+    fTree->Branch(bname.str().c_str(), (iter.second), bname2.str().c_str());
+  }
+
+}
+
+void PerJetLoader::setupTreeZprime(TTree *iTree, std::string iJetLabel) {
+  resetZprime();
+  std::stringstream pSiV;   pSiV << iJetLabel << "_isHadronicV";
+  std::stringstream pSVM;   pSVM << iJetLabel << "_vMatching";
+  std::stringstream pSVS;   pSVS << iJetLabel << "_vSize";
+  std::stringstream pSpF;   pSpF << iJetLabel << "_partonFlavor";
+  std::stringstream pShF;   pShF << iJetLabel << "_hadronFlavor";
+  std::stringstream pSnC;   pSnC << iJetLabel << "_nCharged";
+  std::stringstream pSnN;   pSnN << iJetLabel << "_nNeutrals";
+  std::stringstream pSnP;   pSnP << iJetLabel << "_nParticles";
+  std::stringstream pSvF;   pSvF << iJetLabel << "_vertexFlavor"; 
+  std::stringstream pSvFI;   pSvFI << iJetLabel << "_vertexFlavorInfo";
+
+  fTree = iTree;
+  fTree->Branch(pSiV.str().c_str() ,&fisHadronicV         ,(pSiV.str()+"/I").c_str());
+  fTree->Branch(pSVM.str().c_str() ,&fvMatching           ,(pSVM.str()+"/D").c_str());
+  fTree->Branch(pSVS.str().c_str() ,&fvSize               ,(pSVS.str()+"/D").c_str());
+  fTree->Branch(pSpF.str().c_str() ,&fpartonFlavor        ,(pSpF.str()+"/I").c_str());
+  fTree->Branch(pShF.str().c_str() ,&fhadronFlavor        ,(pShF.str()+"/I").c_str());
+  fTree->Branch(pSnC.str().c_str() ,&fnCharged            ,(pSnC.str()+"/I").c_str());
+  fTree->Branch(pSnN.str().c_str() ,&fnNeutrals           ,(pSnN.str()+"/I").c_str());
+  fTree->Branch(pSnP.str().c_str() ,&fnParticles          ,(pSnP.str()+"/I").c_str());
+  fTree->Branch(pSvF.str().c_str() ,&fnVtxFlavor          ,(pSvF.str()+"/I").c_str());
+  fTree->Branch(pSvFI.str().c_str() ,&fnVtxFlavInfo, (pSvFI.str()+"/I").c_str());
+}
+
+void PerJetLoader::load(int iEvent) { 
+  fVJets       ->Clear();
+  fVJetBr      ->GetEntry(iEvent);
+  fVAddJets    ->Clear();
+  fVAddJetBr   ->GetEntry(iEvent);
+  //fGens        ->Clear();
+  //fGenBr       ->GetEntry(iEvent);
+  fPFs        ->Clear();
+  fPFBr       ->GetEntry(iEvent);
+  //fSVs        ->Clear();
+  //fSVBr       ->GetEntry(iEvent);
+}
+
+void PerJetLoader::selectVJets(std::vector<TLorentzVector> &iElectrons, 
+                               std::vector<TLorentzVector> &iMuons, 
+                               std::vector<TLorentzVector> &iPhotons, 
+                               double dR, 
+                               double iRho, 
+                               unsigned int runNum)
+{
+  reset();  
+  int lCount(0), lCountT(0);
+  for  (int i0 = 0; i0 < fVJets->GetEntriesFast(); i0++) { 
+    TJet *pVJet = (TJet*)((*fVJets)[i0]);    
+    if(passVeto(pVJet->eta,pVJet->phi,dR,iElectrons))                      continue;
+    if(passVeto(pVJet->eta,pVJet->phi,dR,iMuons))                          continue;
+    if(passVeto(pVJet->eta,pVJet->phi,dR,iPhotons))                        continue;
+    
+    double JEC_old = (pVJet->pt)/(pVJet->ptRaw);
+    TLorentzVector vPJet;
+    vPJet.SetPtEtaPhiM(pVJet->ptRaw, pVJet->eta, pVJet->phi, (pVJet->mass)/JEC_old);
+    double jetE = vPJet.E();
+    double JEC = JetEnergyCorrectionFactor(pVJet->ptRaw, pVJet->eta, pVJet->phi, jetE, 
+                 iRho, pVJet->area, 
+                 runNum,
+                JetCorrectionsIOV,JetCorrector);
+    double jetCorrPt = JEC*(pVJet->ptRaw);
+    double jetCorrE = JEC*(vPJet.E());
+    JME::JetParameters parameters = {{JME::Binning::JetPt, jetCorrPt}, {JME::Binning::JetEta, pVJet->eta}, {JME::Binning::Rho, TMath::Min(iRho,44.30)}}; // max 44.30 for Spring16_25nsV6_MC JER (CHANGE ONCE UPDATED)
+    float sigma_MC = resolution.getResolution(parameters);
+    float sf = resolution_sf.getScaleFactor(parameters);
+    float sfUp = resolution_sf.getScaleFactor(parameters, Variation::UP);
+    float sfDown = resolution_sf.getScaleFactor(parameters, Variation::DOWN);
+    double x1 = r->Gaus();
+    double x2 = r->Gaus();
+    double x3 = r->Gaus();
+    double jetEnergySmearFactor = 1.0; 
+    double jetEnergySmearFactorUp = 1.0; 
+    double jetEnergySmearFactorDown = 1.0;    
+    if (!isData) {      
+      jetEnergySmearFactor = 1.0 + sqrt(sf*sf - 1.0)*sigma_MC*x1;
+      jetEnergySmearFactorUp = 1.0 + sqrt(sfUp*sfUp - 1.0)*sigma_MC*x2;
+      jetEnergySmearFactorDown = 1.0 + sqrt(sfDown*sfDown - 1.0)*sigma_MC*x3;
+    }    
+    double unc = getJecUnc( jetCorrPt, pVJet->eta, runNum ); //use run=999 as default
+    
+    double jetCorrPtSmear = jetCorrPt*jetEnergySmearFactor;
+    double jetPtJESUp = jetCorrPt*jetEnergySmearFactor*(1+unc);
+    double jetPtJESDown = jetCorrPt*jetEnergySmearFactor/(1+unc);
+    double jetPtJERUp = jetCorrPt*jetEnergySmearFactorUp;
+    double jetPtJERDown = jetCorrPt*jetEnergySmearFactorDown;
+    
+    double jetCorrESmear = jetCorrE*jetEnergySmearFactor*(1+unc);    
+    double jetEJESUp = jetCorrE*jetEnergySmearFactor*(1+unc);
+    double jetEJESDown = jetCorrE*jetEnergySmearFactor/(1+unc);
+    double jetEJERUp = jetCorrE*jetEnergySmearFactorUp;
+    double jetEJERDown = jetCorrE*jetEnergySmearFactorDown;
+    
+    TLorentzVector thisJet;  thisJet.SetPtEtaPhiE(jetCorrPtSmear, pVJet->eta, pVJet->phi, jetCorrESmear);
+    TLorentzVector thisJetJESUp;  thisJetJESUp.SetPtEtaPhiE(jetPtJESUp, pVJet->eta, pVJet->phi, jetEJESUp);
+    TLorentzVector thisJetJESDown; thisJetJESDown.SetPtEtaPhiE(jetPtJESDown, pVJet->eta, pVJet->phi, jetEJESDown);
+    TLorentzVector thisJetJERUp;  thisJetJERUp.SetPtEtaPhiE(jetPtJERUp,  pVJet->eta, pVJet->phi, jetEJERUp);
+    TLorentzVector thisJetJERDown; thisJetJERDown.SetPtEtaPhiE(jetPtJERDown,  pVJet->eta, pVJet->phi, jetEJERDown);
+    
+    if(jetCorrPtSmear   <=  200)                                           continue;
+    if(fabs(pVJet->eta) >=  2.5)                                           continue;
+    if(!passJetTightSel(pVJet))                                            continue;
+    addJet(pVJet,fLooseVJets);
+    lCount++;
+    x1List.push_back(x1);
+    x2List.push_back(x2);
+    x3List.push_back(x3);
+    if(!passJetTightLepVetoSel(pVJet))                                     continue;
+    lCountT++;
+  }
+  addVJet(fLooseVJets,selectedVJets);
+  fNLooseVJets = lCount;
+  fNTightVJets = lCountT;
+
+  fillVJet(fN,fLooseVJets,dR,iRho,runNum);
+}
+
+double SignedDeltaPhi(double phi1, double phi2) {
+    double dPhi = phi1-phi2;
+    if (dPhi<-PI)
+        dPhi = 2*PI+dPhi;
+    else if (dPhi>PI)
+        dPhi = -2*PI+dPhi;
+    return dPhi;
+}
+
+void PerJetLoader::fillVJet(int iN,
+                            std::vector<TJet*> &iObjects,
+                            double dR, 
+                            double iRho, 
+                            unsigned int runNum)
+{ 
+  int lMin = iObjects.size();
+  if(iN < lMin) lMin = iN;
+  for(int i0 = 0; i0 < lMin; i0++) { 
+    
+    //JEC    
+    double x1 = x1List[i0];
+    double x2 = x2List[i0];
+    double x3 = x3List[i0];
+    
+    double JEC_old = (iObjects[i0]->pt)/(iObjects[i0]->ptRaw);
+    TLorentzVector vPJet;
+    vPJet.SetPtEtaPhiM(iObjects[i0]->ptRaw, iObjects[i0]->eta, iObjects[i0]->phi, (iObjects[i0]->mass)/JEC_old);
+    double jetE = vPJet.E();
+    double JEC = JetEnergyCorrectionFactor(iObjects[i0]->ptRaw, iObjects[i0]->eta, iObjects[i0]->phi, jetE, 
+                 iRho, iObjects[i0]->area, 
+                 runNum,
+                JetCorrectionsIOV,JetCorrector);    
+    double jetCorrPt = JEC*(iObjects[i0]->ptRaw);
+    double unc = getJecUnc( jetCorrPt, iObjects[i0]->eta, runNum ); //use run=999 as default    
+    JME::JetParameters parameters = {{JME::Binning::JetPt, jetCorrPt}, {JME::Binning::JetEta, iObjects[i0]->eta}, {JME::Binning::Rho, TMath::Min(iRho,44.30)}}; // max 44.30 for Spring16_25nsV6_MC JER (CHANGE ONCE UPDATED)
+    float sigma_MC = resolution.getResolution(parameters);
+    float sf = resolution_sf.getScaleFactor(parameters);    
+    float sfUp = resolution_sf.getScaleFactor(parameters, Variation::UP);
+    float sfDown = resolution_sf.getScaleFactor(parameters, Variation::DOWN);
+
+    double jetEnergySmearFactor = 1.0 + sqrt(sf*sf - 1.0)*sigma_MC*x1;
+    double jetEnergySmearFactorUp = 1.0 + sqrt(sfUp*sfUp - 1.0)*sigma_MC*x2;
+    double jetEnergySmearFactorDown = 1.0 + sqrt(sfDown*sfDown - 1.0)*sigma_MC*x3;
+    
+    double jetCorrPtSmear = jetCorrPt*jetEnergySmearFactor;
+    double jetPtJESUp = jetCorrPt*jetEnergySmearFactor*(1+unc);
+    double jetPtJESDown = jetCorrPt*jetEnergySmearFactor/(1+unc);
+    double jetPtJERUp = jetCorrPt*jetEnergySmearFactorUp;
+    double jetPtJERDown = jetCorrPt*jetEnergySmearFactorDown;
+
+    TAddJet *pAddJet = getAddJet(iObjects[i0]);
+
+    fSingletons["pt"] = jetCorrPtSmear;
+    fSingletons["eta"] = iObjects[i0]->eta;
+    fSingletons["phi"] = iObjects[i0]->phi;
+    fSingletons["mass"]  = JEC*jetEnergySmearFactor*(iObjects[i0]->mass);
+    fSingletons["csv"]  = iObjects[i0]->csv;
+    fSingletons["CHF"]  = iObjects[i0]->chHadFrac;
+    fSingletons["NHF"]  = iObjects[i0]->neuHadFrac;
+    fSingletons["NEMF"]  = iObjects[i0]->neuEmFrac;
+    fSingletons["tau21"]  = (pAddJet->tau2/pAddJet->tau1);
+    fSingletons["tau32"]  = (pAddJet->tau3/pAddJet->tau2);
+    fSingletons["msd"]  = pAddJet->mass_sd0;
+    fSingletons["rho"]  = log((pAddJet->mass_sd0*pAddJet->mass_sd0)/iObjects[i0]->pt);
+    fSingletons["minsubscv"]  = TMath::Min(pAddJet->sj1_csv,pAddJet->sj2_csv);
+    fSingletons["maxsubscv"] = TMath::Max(TMath::Max(pAddJet->sj1_csv,pAddJet->sj2_csv),TMath::Max(pAddJet->sj3_csv,pAddJet->sj4_csv));
+    fSingletons["doublecsv"] = pAddJet->doublecsv;
+    fSingletons["doublesub"] = pAddJet->Double_sub;
+    fSingletons["ptraw"] = iObjects[i0]->ptRaw;
+    fSingletons["genpt"] = iObjects[i0]->genpt;
+    /*
+    fSingletons["e2_b1"] = pAddJet->e2_b1;
+    fSingletons["e3_b1"] = pAddJet->e3_b1;
+    fSingletons["e3_v1_b1"] = pAddJet->e3_v1_b1;
+    fSingletons["e3_v2_b1"] = pAddJet->e3_v2_b1;
+    fSingletons["e4_v1_b1"] = pAddJet->e4_v1_b1;
+    fSingletons["e4_v2_b1"] = pAddJet->e4_v2_b1;
+    fSingletons["e2_b2"] = pAddJet->e2_b2;
+    fSingletons["e3_b2"] = pAddJet->e3_b2;
+    fSingletons["e3_v1_b2"] = pAddJet->e3_v1_b2;
+    fSingletons["e3_v2_b2"] = pAddJet->e3_v2_b2;
+    fSingletons["e4_v1_b2"] = pAddJet->e4_v1_b2;
+    fSingletons["e4_v2_b2"] = pAddJet->e4_v2_b2;
+    fSingletons["e2_sdb1"] = pAddJet->e2_sdb1;
+    fSingletons["e3_sdb1"] = pAddJet->e3_sdb1;
+    fSingletons["e3_v1_sdb1"] = pAddJet->e3_v1_sdb1;
+    fSingletons["e3_v2_sdb1"] = pAddJet->e3_v2_sdb1;
+    fSingletons["e4_v1_sdb1"] = pAddJet->e4_v1_sdb1;
+    fSingletons["e4_v2_sdb1"] = pAddJet->e4_v2_sdb1;
+    fSingletons["e2_sdb2"] = pAddJet->e2_sdb2;
+    fSingletons["e3_sdb2"] = pAddJet->e3_sdb2;
+    fSingletons["e3_v1_sdb2"] = pAddJet->e3_v1_sdb2;
+    fSingletons["e3_v2_sdb2"] = pAddJet->e3_v2_sdb2;
+    fSingletons["e4_v1_sdb2"] = pAddJet->e4_v1_sdb2;
+    fSingletons["e4_v2_sdb2"] = pAddJet->e4_v2_sdb2;
+    fSingletons["N2sdb1"] = pAddJet->e3_v2_sdb1/(pAddJet->e2_sdb1*pAddJet->e2_sdb1);
+    fSingletons["N2sdb2"] = pAddJet->e3_v2_sdb2/(pAddJet->e2_sdb2*pAddJet->e2_sdb2);
+    fSingletons["M2sdb1"] = pAddJet->e3_v1_sdb1/(pAddJet->e2_sdb1);
+    fSingletons["M2sdb2"] = pAddJet->e3_v1_sdb2/(pAddJet->e2_sdb2);
+    fSingletons["D2sdb1"] = pAddJet->e3_sdb1/(pAddJet->e2_sdb1*pAddJet->e2_sdb1*pAddJet->e2_sdb1);
+    fSingletons["D2sdb2"] = pAddJet->e3_sdb2/(pAddJet->e2_sdb2*pAddJet->e2_sdb2*pAddJet->e2_sdb2);
+    fSingletons["N2b1"] = pAddJet->e3_v2_b1/(pAddJet->e2_b1*pAddJet->e2_b1);
+    fSingletons["N2b2"] = pAddJet->e3_v2_b2/(pAddJet->e2_b2*pAddJet->e2_b2);
+    fSingletons["M2b1"] = pAddJet->e3_v1_b1/(pAddJet->e2_b1);
+    fSingletons["M2b2"] = pAddJet->e3_v1_b2/(pAddJet->e2_b2);
+    fSingletons["D2b1"] = pAddJet->e3_b1/(pAddJet->e2_b1*pAddJet->e2_b1*pAddJet->e2_b1);
+    fSingletons["D2b2"] = pAddJet->e3_b2/(pAddJet->e2_b2*pAddJet->e2_b2*pAddJet->e2_b2);
+    */
+    fSingletons["pt_old"] = iObjects[i0]->pt;
+    fSingletons["jetPtJESUp"] = jetPtJESUp;
+    fSingletons["jetPtJESDown"] = jetPtJESDown;
+    fSingletons["jetPtJERUp"] = jetPtJERUp;
+    fSingletons["jetPtJERDown"] = jetPtJERDown;
+    /*
+    fSingletons["e2_sdb05"] = pAddJet->e2_sdb05;
+    fSingletons["e3_sdb05"] = pAddJet->e3_sdb05;
+    fSingletons["e3_v1_sdb05"] = pAddJet->e3_v1_sdb05;
+    fSingletons["e3_v2_sdb05"] = pAddJet->e3_v2_sdb05;
+    fSingletons["e4_v1_sdb05"] = pAddJet->e4_v1_sdb05;
+    fSingletons["e4_v2_sdb05"] = pAddJet->e4_v2_sdb05;
+    fSingletons["e2_sdb4"] = pAddJet->e2_sdb4;
+    fSingletons["e3_sdb4"] = pAddJet->e3_sdb4;
+    fSingletons["e3_v1_sdb4"] = pAddJet->e3_v1_sdb4;
+    fSingletons["e3_v2_sdb4"] = pAddJet->e3_v2_sdb4;
+    fSingletons["e4_v1_sdb4"] = pAddJet->e4_v1_sdb4;
+    fSingletons["e4_v2_sdb4"] = pAddJet->e4_v2_sdb4;
+    fSingletons["flavour"] = pAddJet->flavour;
+    fSingletons["nbHadrons"] = pAddJet->nbHadrons;
+    fSingletons["nSV"] = pAddJet->nSV;
+    fSingletons["jetNTracks"] = pAddJet->jetNTracks;
+    fSingletons["tau_flightDistance2dSig_1"] = pAddJet->tau_flightDistance2dSig_1;
+    fSingletons["SubJet_csv"] = pAddJet->SubJet_csv;
+    fSingletons["z_ratio"] = pAddJet->z_ratio;
+    fSingletons["trackSipdSig_3"] = pAddJet->trackSipdSig_3;
+    fSingletons["trackSipdSig_2"] = pAddJet->trackSipdSig_2;
+    fSingletons["trackSipdSig_1"] = pAddJet->trackSipdSig_1;
+    fSingletons["trackSipdSig_0"] = pAddJet->trackSipdSig_0;
+    fSingletons["trackSipdSig_1_0"] = pAddJet->trackSipdSig_1_0;
+    fSingletons["trackSipdSig_0_0"] = pAddJet->trackSipdSig_0_0;
+    fSingletons["trackSipdSig_1_1"] = pAddJet->trackSipdSig_1_1;
+    fSingletons["trackSipdSig_0_1"] = pAddJet->trackSipdSig_0_1;
+    fSingletons["trackSip2dSigAboveCharm_0"] = pAddJet->trackSip2dSigAboveCharm_0;
+    fSingletons["trackSip2dSigAboveBottom_0"] = pAddJet->trackSip2dSigAboveBottom_0;
+    fSingletons["trackSip2dSigAboveBottom_1"] = pAddJet->trackSip2dSigAboveBottom_1;
+    fSingletons["tau1_trackEtaRel_0"] = pAddJet->tau1_trackEtaRel_0;
+    fSingletons["tau1_trackEtaRel_1"] = pAddJet->tau1_trackEtaRel_1;
+    fSingletons["tau1_trackEtaRel_2"] = pAddJet->tau1_trackEtaRel_2;
+    fSingletons["tau0_trackEtaRel_0"] = pAddJet->tau0_trackEtaRel_0;
+    fSingletons["tau0_trackEtaRel_1"] = pAddJet->tau0_trackEtaRel_1;
+    fSingletons["tau0_trackEtaRel_2"] = pAddJet->tau0_trackEtaRel_2;
+    fSingletons["tau_vertexMass_0"] = pAddJet->tau_vertexMass_0;
+    fSingletons["tau_vertexEnergyRatio_0"] = pAddJet->tau_vertexEnergyRatio_0;
+    fSingletons["tau_vertexDeltaR_0"] = pAddJet->tau_vertexDeltaR_0;
+    fSingletons["tau_flightDistance2dSig_0"] = pAddJet->tau_flightDistance2dSig_0;
+    fSingletons["tau_vertexMass_1"] = pAddJet->tau_vertexMass_1;
+    fSingletons["tau_vertexEnergyRatio_1"] = pAddJet->tau_vertexEnergyRatio_1;
+    fSingletons["nC"] = (iObjects[i0]->vtxFlavor % 1000) / 100;
+    fSingletons["nB"] = (iObjects[i0]->vtxFlavor - (iObjects[i0]->vtxFlavor % 1000)) / 1000; 
+    */
+    unsigned nG = fGens->GetEntriesFast();
+    unsigned nP = 0;
+    double dR2 = dR * dR;
+
+    double threshold = 0.2 * iObjects[i0]->pt;
+    auto matchJet = [jet = iObjects[i0], dR2](TGenParticle *p) -> bool {
+      return deltaR2(jet->eta, jet->phi, p->eta, p->phi) < dR2;
+    };
+
+    std::unordered_set<TGenParticle*> partons; // avoid double-counting
+    for (unsigned iG = 0; iG != nG; ++iG) {
+      TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
+      unsigned apdgid = abs(part->pdgId);
+      if (apdgid > 5 &&
+          apdgid != 21 &&
+          apdgid != 15 &&
+          apdgid != 11 &&
+          apdgid != 13) 
+        continue;
+
+      if (part->pt < threshold)
+        continue;
+
+      if (!matchJet(part))
+        continue;
+
+      TGenParticle *parent = part;
+      TGenParticle *foundParent = NULL;
+      while (parent->parent > 0) {
+        parent = (TGenParticle*)((*fGens)[parent->parent]);
+        if (partons.find(parent) != partons.end()) {
+          foundParent = parent;
+          break;
+        }
+      }
+
+      // check if the particle has a 1->2 splitting where the daughters satisfy
+      // the z-cut condition and match the jet cone
+      TGenParticle *dau1 = NULL, *dau2 = NULL;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)(*fGens)[jG];
+        if (child->parent != (int)iG)
+          continue; // only consider splittings from the current particle 
+
+        if (dau1)
+          dau2 = child; 
+        else 
+          dau1 = child; 
+        if (dau1 && dau2)
+          break; // ! assume it's not possible to have 1->N for N>2
+                 // ... this is not a good assumption in the miniaod-compressed
+                 // showering history
+      }
+      if (dau1 && dau1->pt > threshold && matchJet(dau1) && 
+          dau2 && dau2->pt > threshold && matchJet(dau2)) {
+        if (foundParent) {
+          partons.erase(partons.find(foundParent)); // remove the ancestor
+        }
+        partons.insert(dau1);
+        partons.insert(dau2);
+      } else if (foundParent) {
+        // this means we found an ancestor parton, but this isn't the vertex that gives
+        // a large 1->2 splitting, so we can skip it as an intermediary
+        continue; 
+      } else {
+        // it passes all the checks and doesn't have an ancestor - keep it!
+        partons.insert(part);
+      }
+
+    }  
+    nP = std::min((int)partons.size(), NPART);
+    fSingletons["nProngs"] = nP;
+
+    std::vector<TGenParticle*> vPartons; vPartons.reserve(nP);
+    for (auto &iter : partons) 
+      vPartons.push_back(iter);
+    auto ptsort = [](TGenParticle *p1, TGenParticle *p2) -> bool {
+      return p1->pt > p2->pt;
+    };
+    std::sort(vPartons.begin(), vPartons.end(), ptsort);
+    TLorentzVector vPartonSum(0,0,0,0);
+    TLorentzVector vTmp;
+    for (unsigned iP = 0; iP != nP; ++iP) {
+      TGenParticle *part = vPartons.at(iP);
+      fPartArrs["parton_pt"][iP] = part->pt;
+      fPartArrs["parton_eta"][iP] = part->eta;
+      fPartArrs["parton_phi"][iP] = part->phi;
+      fPartArrs["parton_m"][iP] = part->mass;
+      fPartArrs["parton_pdgid"][iP] = part->pdgId;
+      vTmp.SetPtEtaPhiM(part->pt, part->eta, part->phi, part->mass);
+      vPartonSum += vTmp;
+    }
+    fSingletons["partonPt"] = vPartonSum.Pt();
+    fSingletons["partonEta"] = vPartonSum.Eta();
+    fSingletons["partonPhi"] = vPartonSum.Phi();
+    fSingletons["partonM"] = vPartonSum.M();
+
+    ///////
+    ///look for resonances
+    fSingletons["resonanceType"] = -1;
+    // start with top 
+    unsigned target = 6;
+    for (unsigned iG = 0; iG != nG; ++iG) {
+      TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
+      if (abs(part->pdgId) != target)
+        continue; 
+      if (deltaR2(iObjects[i0]->eta, iObjects[i0]->phi, part->eta, part->phi) > dR2)
+        continue;
+
+      TGenParticle *pW = 0, *pB = 0;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+        if (child->parent != (int)iG)
+          continue;
+        switch (abs(child->pdgId)) {
+          case 5:
+            pB = child; 
+            break;
+          case 24:
+            pW = child; 
+            break;
+        };
+        if (pW && pB)
+          break;
+      }
+
+      if (!pW || !pB)
+        continue;
+      TGenParticle *pQ1 = 0, *pQ2 = 0;
+      for (unsigned jG = 0; jG != nG; ++jG) {
+        TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+        if (abs(child->pdgId) > 5)
+          continue; 
+        if (child->parent < 0)
+          continue;
+
+        bool foundW = false; 
+        // direct parent must be a W, but not necessarily the W directly from the t 
+        TGenParticle *parent = (TGenParticle*)((*fGens)[child->parent]);
+        if (abs(parent->pdgId) != 24)
+          continue; 
+
+        while (!foundW) {
+          if (parent == pW) {
+            foundW = true; 
+            if (!pQ1) 
+              pQ1 = child; 
+            else 
+              pQ2 = child;
+          } 
+          if (parent->parent < 0)
+            break; 
+          parent = (TGenParticle*)((*fGens)[parent->parent]);
+        }
+        if (pQ1 && pQ2)
+          break;
+      }
+
+      if (!(pB && pW && pQ1 && pQ2))
+        continue; 
+
+      // now calculate the top size 
+      double size = 0; 
+      for (auto *child : {pB, pQ1, pQ2}) {
+        size = TMath::Max(size,
+                          deltaR2(part->eta, part->phi, child->eta, child->phi));
+      }
+      if (size > 1.8 * dR2)
+        continue; 
+
+      fSingletons["nResonanceProngs"] = 3;
+      fSingletons["resonanceType"] = 4; // 0=q/g, 1=Z, 2=W, 3=H, 4=top
+    }
+
+    if (fSingletons["resonanceType"] < 0) {
+      std::vector<unsigned> targets = {23, 24, 25};
+      for (unsigned iG = 0; iG != nG; ++iG) {
+        TGenParticle *part = (TGenParticle*)((*fGens)[iG]);
+
+        auto found_target = std::find(targets.begin(),targets.end(),abs(part->pdgId));
+        if (found_target == targets.end())
+          continue; 
+        unsigned found_id = *found_target;
+
+        if (deltaR2(iObjects[i0]->eta, iObjects[i0]->phi, part->eta, part->phi) > dR2)
+          continue;
+
+        TGenParticle *pQ1 = 0, *pQ2 = 0;
+        for (unsigned jG = 0; jG != nG; ++jG) {
+          TGenParticle *child = (TGenParticle*)((*fGens)[jG]);
+          if (abs(child->pdgId) > 5)
+            continue; 
+          if (child->parent < 0)
+            continue;
+
+          // direct parent must be a W, but not necessarily the W
+          TGenParticle *parent = (TGenParticle*)((*fGens)[child->parent]);
+          if (abs(parent->pdgId) != found_id)
+            continue; 
+
+          bool foundP = false;
+          while (!foundP) {
+            if (parent == part) {
+              foundP = true; 
+              if (!pQ1) 
+                pQ1 = child; 
+              else 
+                pQ2 = child;
+            } 
+            if (parent->parent < 0)
+              break; 
+            parent = (TGenParticle*)((*fGens)[parent->parent]);
+          }
+          if (pQ1 && pQ2)
+            break;
+        }
+
+        if (!(pQ1 && pQ2))
+          continue; 
+
+        // now calculate the size 
+        double size = 0; 
+        for (auto *child : {pQ1, pQ2}) {
+          size = TMath::Max(size,
+                            deltaR2(part->eta, part->phi, child->eta, child->phi));
+        }
+        if (size > 1.8 * dR2)
+          continue; 
+
+        fSingletons["nResonanceProngs"] = 2;
+        fSingletons["resonanceType"] = found_id - 22; // 0=q/g, 1=Z, 2=W, 3=H, 4=top
+      }
+    }
+
+    if (fSingletons["resonanceType"] < 0) {
+      fSingletons["resonanceType"] = 0;
+      fSingletons["nResonanceProngs"] = 1;
+    }
+
+    //////
+
+    // fill neutral and charged PF candidates
+    std::vector<TPFPart*> jetPFs;
+    if (aktSort) {
+      TLorentzVector vtmp;
+      std::vector<fastjet::PseudoJet> pjs;
+      for (auto idx : iObjects[i0]->pfCands) {
+        TPFPart *part = ((TPFPart*)(fPFs->At(idx)));
+        vtmp.SetPtEtaPhiM(part->pt,part->eta,part->phi,part->m);
+        pjs.emplace_back(vtmp.Px(), vtmp.Py(), vtmp.Pz(), vtmp.E());
+        pjs.back().set_user_index(idx);
+      }
+      fastjet::ClusterSequenceArea seq(pjs, *jetDef, *areaDef);
+
+      auto &history = seq.history();
+      auto &jets = seq.jets();
+
+      std::vector<JetHistory> ordered_jets;
+      for (auto &h : history) {
+        // printf("%i %i %i %i ", h.parent1, h.parent2, h.child, h.jetp_index);
+        if (h.jetp_index >= 0) {
+          // printf("%.3f ", jets.at(h.jetp_index).perp());
+          auto &j = jets.at(h.jetp_index);
+          if (j.user_index() >= 0) {
+            // printf("known particle");
+            JetHistory jh;
+            jh.user_idx = j.user_index();
+            jh.child_idx = h.child;
+            ordered_jets.push_back(jh);
+          }
+        }
+        // printf("\n");
+      }
+      std::sort(ordered_jets.begin(),
+                ordered_jets.end(),
+                [](JetHistory x, JetHistory y) {return x.child_idx < y.child_idx;});
+      for (auto &jh : ordered_jets) {
+        jetPFs.push_back( (TPFPart*)(fPFs->At(jh.user_idx)) );
+      }
+    } else { // pT sort 
+      for (auto idx : iObjects[i0]->pfCands) {
+        jetPFs.push_back( (TPFPart*)(fPFs->At(idx)) );
+      }
+      std::sort(jetPFs.begin(),
+                jetPFs.end(),
+                [](TPFPart *x, TPFPart *y) {return x->pt * x->pup > y->pt * y->pup;});
+    }
+    int iCPF=0, iIPF=0;
+    for (auto *pf : jetPFs) {
+      if (pf->q && iCPF < NCPF) { // charged PF
+        fCPFArrs["cpf_pt"][iCPF] = pf->pup * pf->pt / iObjects[i0]->pt; 
+        fCPFArrs["cpf_eta"][iCPF] = pf->eta - iObjects[i0]->eta; 
+        fCPFArrs["cpf_phi"][iCPF] =SignedDeltaPhi(pf->phi, iObjects[i0]->phi); 
+        fCPFArrs["cpf_m"][iCPF] = pf->m; 
+        fCPFArrs["cpf_e"][iCPF] = pf->e; 
+        fCPFArrs["cpf_q"][iCPF] = pf->q; 
+        fCPFArrs["cpf_pfType"][iCPF] = pf->pfType; 
+        fCPFArrs["cpf_vtxID"][iCPF] = pf->vtxId; 
+        fCPFArrs["cpf_trkChi2"][iCPF] = pf->trkChi2; 
+        fCPFArrs["cpf_pup"][iCPF] = pf->pup; 
+        fCPFArrs["cpf_vtxChi2"][iCPF] = pf->vtxChi2; 
+        fCPFArrs["cpf_ecalE"][iCPF] = pf->ecalE; 
+        fCPFArrs["cpf_hcalE"][iCPF] = pf->hcalE; 
+        fCPFArrs["cpf_d0"][iCPF] = pf->d0; 
+        fCPFArrs["cpf_dz"][iCPF] = pf->dz; 
+        fCPFArrs["cpf_d0Err"][iCPF] = pf->d0Err; 
+        fCPFArrs["cpf_dptdpt"][iCPF] = pf->dptdpt; 
+        fCPFArrs["cpf_detadeta"][iCPF] = pf->detadeta; 
+        fCPFArrs["cpf_dphidphi"][iCPF] = pf->dphidphi; 
+        fCPFArrs["cpf_dxydxy"][iCPF] = pf->dxydxy; 
+        fCPFArrs["cpf_dzdz"][iCPF] = pf->dzdz; 
+        fCPFArrs["cpf_dxydz"][iCPF] = pf->dxydz; 
+        fCPFArrs["cpf_dphidxy"][iCPF] = pf->dphidxy; 
+        fCPFArrs["cpf_dlambdadz"][iCPF] = pf->dlambdadz; 
+        iCPF++;
+      } 
+      if (iIPF >= NIPF)
+        continue;
+      fIPFArrs["ipf_pt"][iIPF] = pf->pup * pf->pt / iObjects[i0]->pt; 
+      // fIPFArrs["ipf_pt"][iIPF] = pf->pup * pf->pt / iObjects[i0]->pt; 
+      fIPFArrs["ipf_eta"][iIPF] = pf->eta - iObjects[i0]->eta; 
+      fIPFArrs["ipf_phi"][iIPF] = SignedDeltaPhi(pf->phi, iObjects[i0]->phi); 
+      fIPFArrs["ipf_m"][iIPF] = pf->m; 
+      fIPFArrs["ipf_e"][iIPF] = pf->e; 
+      fIPFArrs["ipf_pfType"][iIPF] = pf->pfType; 
+      fIPFArrs["ipf_pup"][iIPF] = pf->pup; 
+      fIPFArrs["ipf_ecalE"][iIPF] = pf->ecalE; 
+      fIPFArrs["ipf_hcalE"][iIPF] = pf->hcalE; 
+      iIPF++;
+    }
+    fN_cpf = std::min(iCPF, NCPF);
+    fN_ipf = std::min(iIPF, NIPF);
+
+    // fill PF 
+    std::vector<TSVtx*> jetSVs;
+    for (auto idx : pAddJet->svtx) {
+      jetSVs.push_back( (TSVtx*)(fSVs->At(idx)) );
+    }
+    std::sort(jetSVs.begin(),
+              jetSVs.end(),
+              [](TSVtx *x, TSVtx *y) {return x->pt > y->pt;});
+    int iSV=0;
+    for (auto *sv : jetSVs) {
+      if (iSV == NSV)
+        break;
+      fSVArrs["sv_pt"][iSV] = sv->pt / iObjects[i0]->pt;
+      fSVArrs["sv_eta"][iSV] = sv->eta - iObjects[i0]->eta;
+      fSVArrs["sv_phi"][iSV] = SignedDeltaPhi(sv->phi, iObjects[i0]->phi);
+      fSVArrs["sv_mass"][iSV] = sv->mass;
+      fSVArrs["sv_etarel"][iSV] = sv->etarel;
+      fSVArrs["sv_phirel"][iSV] = sv->phirel;
+      fSVArrs["sv_deltaR"][iSV] = sv->sv_deltaR;
+      fSVArrs["sv_ntracks"][iSV] = sv->sv_ntracks;
+      fSVArrs["sv_chi2"][iSV] = sv->sv_chi2;
+      fSVArrs["sv_ndf"][iSV] = sv->sv_ndf;
+      fSVArrs["sv_normchi2"][iSV] = sv->sv_normchi2;
+      fSVArrs["sv_dxy"][iSV] = sv->sv_dxy;
+      fSVArrs["sv_dxyerr"][iSV] = sv->sv_dxyerr;
+      fSVArrs["sv_dxysig"][iSV] = sv->sv_dxysig;
+      fSVArrs["sv_d3d"][iSV] = sv->sv_d3d;
+      fSVArrs["sv_d3derr"][iSV] = sv->sv_d3derr;
+      fSVArrs["sv_d3dsig"][iSV] = sv->sv_d3dsig;
+      fSVArrs["sv_enratio"][iSV] = sv->sv_enratio;      
+      iSV++;
+    }
+    fN_sv = std::min(iSV, NSV);
+
+    fpartonFlavor   = iObjects[0]->partonFlavor;
+    fhadronFlavor   = iObjects[0]->hadronFlavor;
+    fnCharged       = iObjects[0]->nCharged;
+    fnNeutrals      = iObjects[0]->nNeutrals;
+    fnParticles     = iObjects[0]->nParticles;
+    fnVtxFlavor     = iObjects[0]->vtxFlavor;
+    fnVtxFlavInfo   = iObjects[0]->vtxFlavInfo;
+
+    fTree->Fill(); 
+
+  }
+}
+
+void PerJetLoader::matchJet(std::vector<TLorentzVector> iJets1, TLorentzVector iJet2, double dR, int jIndex){
+  TLorentzVector iJet1;
+  int nmatched(0);
+  float mindR = dR;
+  for(int i0 = 0; i0 < int(iJets1.size()); i0++) {
+    if ((iJets1[i0].DeltaR(iJet2) < mindR) && (fabs(iJets1[i0].Pt()-iJet2.Pt())<0.35*fabs(iJet2.Pt()))) {
+      nmatched++;
+      iJet1 = iJets1[i0];
+      mindR= iJets1[i0].DeltaR(iJet2);  
+    }
+  }
+}
+
+TAddJet *PerJetLoader::getAddJet(TJet *iJet) { 
+  int lIndex = -1;
+  TAddJet *lJet = 0; 
+  for(int i0 = 0; i0 < fVJets->GetEntriesFast(); i0++) { 
+    if((*fVJets)[i0] == iJet) { lIndex = i0; break;}
+  }
+  if(lIndex == -1) return 0;
+  for  (int i0 = 0; i0 < fVAddJets->GetEntriesFast(); i0++) { 
+    TAddJet *pJet = (TAddJet*)((*fVAddJets)[i0]);
+    if(pJet->index == fabs(lIndex)) { lJet = pJet; break;}
+  }
+  return lJet;
+}
+
+//2016 Prompt Reco
+void PerJetLoader::loadJECs(bool isData) {
+    std::cout << "PerJetLoader: loading jet energy correction constants" << std::endl;
+    // initialize
+    loadCMSSWPath();
+    std::string jecPathname = cmsswPath + "/src/BaconAnalyzer/Analyzer/data/JEC/";
+    correctionParameters = std::vector<std::vector<JetCorrectorParameters> >();
+    JetCorrector = std::vector<FactorizedJetCorrector*>();
+    jecUnc = std::vector<JetCorrectionUncertainty*>();
+    JetCorrectionsIOV = std::vector<std::pair<int,int> >();
+    
+    resolution = JME::JetResolution(Form("%s/Spring16_25nsV6_MC/Spring16_25nsV6_MC_PtResolution_AK8PFPuppi.txt",jecPathname.c_str()));
+    resolution_sf = JME::JetResolutionScaleFactor(Form("%s/Spring16_25nsV6_MC/Spring16_25nsV6_MC_SF_AK8PFPuppi.txt",jecPathname.c_str()));
+    
+    if (isData) {      
+      std::vector<JetCorrectorParameters> correctionParametersTemp = std::vector<JetCorrectorParameters> ();
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA_L2L3Residual_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorTemp = new FactorizedJetCorrector(correctionParametersTemp);
+      std::string jecUncPath = jecPathname+"/Spring16_25nsV6_DATA/Spring16_25nsV6_DATA_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncTemp = new JetCorrectionUncertainty(jecUncPath);
+
+      correctionParameters.push_back(correctionParametersTemp);
+      JetCorrector.push_back( JetCorrectorTemp );
+      jecUnc.push_back(jecUncTemp);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 0, 99999999 ));
+    }
+    else {
+      std::vector<JetCorrectorParameters> correctionParametersTemp = std::vector<JetCorrectorParameters> ();
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_MC/Spring16_25nsV6_MC_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_MC/Spring16_25nsV6_MC_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersTemp.push_back(JetCorrectorParameters(
+                  Form("%s/Spring16_25nsV6_MC/Spring16_25nsV6_MC_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+
+      FactorizedJetCorrector *JetCorrectorTemp = new FactorizedJetCorrector(correctionParametersTemp);
+      std::string jecUncPath = jecPathname+"/Spring16_25nsV6_MC/Spring16_25nsV6_MC_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncTemp = new JetCorrectionUncertainty(jecUncPath);
+
+      correctionParameters.push_back(correctionParametersTemp);
+      JetCorrector.push_back( JetCorrectorTemp );
+      jecUnc.push_back(jecUncTemp);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 0, 99999999 ));
+    }
+
+}
+void PerJetLoader::loadJECs_Rereco(bool isData) {
+    std::cout << "PerJetLoader: loading Rereco jet energy correction constants" << std::endl;
+    // initialize
+    loadCMSSWPath();
+    std::string jecPathname = cmsswPath + "/src/BaconAnalyzer/Analyzer/data/JEC/";
+    correctionParameters = std::vector<std::vector<JetCorrectorParameters> >();
+    JetCorrector = std::vector<FactorizedJetCorrector*>();
+    jecUnc = std::vector<JetCorrectionUncertainty*>();
+    JetCorrectionsIOV = std::vector<std::pair<int,int> >();
+    
+    resolution = JME::JetResolution(Form("%s/Spring16_25nsV10_MC/Spring16_25nsV10_MC_PtResolution_AK8PFPuppi.txt",jecPathname.c_str()));
+    resolution_sf = JME::JetResolutionScaleFactor(Form("%s/Spring16_25nsV10_MC/Spring16_25nsV10_MC_SF_AK8PFPuppi.txt",jecPathname.c_str()));
+ 
+    if (isData) {
+      //IOV: 2016BCD
+      std::vector<JetCorrectorParameters> correctionParametersBCD = std::vector<JetCorrectorParameters> ();
+      correctionParametersBCD.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016BCDV3_DATA/Summer16_23Sep2016BCDV3_DATA_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersBCD.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016BCDV3_DATA/Summer16_23Sep2016BCDV3_DATA_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersBCD.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016BCDV3_DATA/Summer16_23Sep2016BCDV3_DATA_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersBCD.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016BCDV3_DATA/Summer16_23Sep2016BCDV3_DATA_L2L3Residual_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorBCD = new FactorizedJetCorrector(correctionParametersBCD);
+      std::string jecUncPathBCD = jecPathname+"/Summer16_23Sep2016BCDV3_DATA/Summer16_23Sep2016BCDV3_DATA_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncBCD = new JetCorrectionUncertainty(jecUncPathBCD);
+
+      correctionParameters.push_back(correctionParametersBCD);
+      JetCorrector.push_back( JetCorrectorBCD );
+      jecUnc.push_back(jecUncBCD);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 1, 276811 ));
+
+      //IOV: 2016E
+      std::vector<JetCorrectorParameters> correctionParametersEF = std::vector<JetCorrectorParameters> ();
+      correctionParametersEF.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016EFV3_DATA/Summer16_23Sep2016EFV3_DATA_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersEF.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016EFV3_DATA/Summer16_23Sep2016EFV3_DATA_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersEF.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016EFV3_DATA/Summer16_23Sep2016EFV3_DATA_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersEF.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016EFV3_DATA/Summer16_23Sep2016EFV3_DATA_L2L3Residual_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorEF = new FactorizedJetCorrector(correctionParametersEF);
+      std::string jecUncPathEF = jecPathname+"/Summer16_23Sep2016EFV3_DATA/Summer16_23Sep2016EFV3_DATA_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncEF = new JetCorrectionUncertainty(jecUncPathEF);
+
+      correctionParameters.push_back(correctionParametersEF);
+      JetCorrector.push_back( JetCorrectorEF );
+      jecUnc.push_back(jecUncEF);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 276831, 278801 ));
+
+      //IOV: 2016G
+      std::vector<JetCorrectorParameters> correctionParametersG = std::vector<JetCorrectorParameters> ();
+      correctionParametersG.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016GV3_DATA/Summer16_23Sep2016GV3_DATA_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersG.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016GV3_DATA/Summer16_23Sep2016GV3_DATA_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersG.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016GV3_DATA/Summer16_23Sep2016GV3_DATA_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersG.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016GV3_DATA/Summer16_23Sep2016GV3_DATA_L2L3Residual_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorG = new FactorizedJetCorrector(correctionParametersG);
+      std::string jecUncPathG = jecPathname+"/Summer16_23Sep2016GV3_DATA/Summer16_23Sep2016GV3_DATA_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncG = new JetCorrectionUncertainty(jecUncPathG);
+
+      correctionParameters.push_back(correctionParametersG);
+      JetCorrector.push_back( JetCorrectorG );
+      jecUnc.push_back(jecUncG);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 278802, 280385 ));
+
+      //IOV: 2016H
+      std::vector<JetCorrectorParameters> correctionParametersH = std::vector<JetCorrectorParameters> ();
+      correctionParametersH.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016HV3_DATA/Summer16_23Sep2016HV3_DATA_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersH.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016HV3_DATA/Summer16_23Sep2016HV3_DATA_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersH.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016HV3_DATA/Summer16_23Sep2016HV3_DATA_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersH.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016HV3_DATA/Summer16_23Sep2016HV3_DATA_L2L3Residual_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorH = new FactorizedJetCorrector(correctionParametersH);
+      std::string jecUncPathH = jecPathname+"/Summer16_23Sep2016HV3_DATA/Summer16_23Sep2016HV3_DATA_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncH = new JetCorrectionUncertainty(jecUncPathH);
+
+      correctionParameters.push_back(correctionParametersH);
+      JetCorrector.push_back( JetCorrectorH );
+      jecUnc.push_back(jecUncH);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 280919, 99999999 ));
+
+    }
+    else {
+      std::vector<JetCorrectorParameters> correctionParametersMC = std::vector<JetCorrectorParameters> ();
+      correctionParametersMC.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016V3_MC/Summer16_23Sep2016V3_MC_L1FastJet_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersMC.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016V3_MC/Summer16_23Sep2016V3_MC_L2Relative_AK8PFPuppi.txt", jecPathname.c_str())));
+      correctionParametersMC.push_back(JetCorrectorParameters(
+                  Form("%s/Summer16_23Sep2016V3_MC/Summer16_23Sep2016V3_MC_L3Absolute_AK8PFPuppi.txt", jecPathname.c_str())));
+      FactorizedJetCorrector *JetCorrectorMC = new FactorizedJetCorrector(correctionParametersMC);
+      std::string jecUncPath = jecPathname+"/Summer16_23Sep2016V3_MC/Summer16_23Sep2016V3_MC_Uncertainty_AK8PFPuppi.txt";
+      JetCorrectionUncertainty *jecUncMC = new JetCorrectionUncertainty(jecUncPath);
+
+      correctionParameters.push_back(correctionParametersMC);
+      JetCorrector.push_back( JetCorrectorMC );
+      jecUnc.push_back(jecUncMC);
+      JetCorrectionsIOV.push_back( std::pair<int,int>( 1, 99999999 ));
+    }
+  
+}
+
+void PerJetLoader::loadCMSSWPath() {
+    char* cmsswPathChar = getenv("CMSSW_BASE");
+    if (cmsswPathChar == NULL) {
+        std::cout << "Warning in PerJetLoader::loadCMSSWPath : CMSSW_BASE not detected." << std::endl;
+        cmsswPath = "";
+    }
+    cmsswPath = std::string(cmsswPathChar);
+}
+
+
+
+// Retrieve jet energy uncertainty as a function of pt and eta
+double PerJetLoader::getJecUnc( float pt, float eta , int run) {
+
+  int foundIndex = -1;
+  for (uint i=0; i<JetCorrectionsIOV.size(); i++) {
+    if (run >= JetCorrectionsIOV[i].first && run <= JetCorrectionsIOV[i].second) {
+      foundIndex = i;
+    }
+  }
+  if (foundIndex == -1) {
+    std::cout << "Warning: run = " << run << " was not found in any valid IOV range. use default index = 0 for Jet energy corrections. \n";
+    foundIndex = 0;
+  }
+
+  jecUnc[foundIndex]->setJetPt(pt);
+  jecUnc[foundIndex]->setJetEta(eta);
+  return jecUnc[foundIndex]->getUncertainty(true);
+}
+
+
+//Jet Energy Corrections
+double PerJetLoader::JetEnergyCorrectionFactor( double jetRawPt, double jetEta, double jetPhi, double jetE,
+             double rho, double jetArea,
+             int run,
+             std::vector<std::pair<int,int> > JetCorrectionsIOV,
+             std::vector<FactorizedJetCorrector*> jetcorrector,
+             int jetCorrectionLevel,
+             bool printDebug) {
+
+  int foundIndex = -1;
+  for (uint i=0; i<JetCorrectionsIOV.size(); i++) {
+    if (run >= JetCorrectionsIOV[i].first && run <= JetCorrectionsIOV[i].second) {
+      foundIndex = i;
+    }
+  }
+  if (foundIndex == -1) {
+    std::cout << "Warning: run = " << run << " was not found in any valid IOV range. use default index = 0 for Jet energy corrections. \n";
+    foundIndex = 0;
+  }
+
+  if (!jetcorrector[foundIndex]) {
+    std::cout << "WWARNING: Jet corrector pointer is null. Returning JEC = 0. \n";
+    return 0;
+  }
+
+  jetcorrector[foundIndex]->setJetEta(jetEta);
+  jetcorrector[foundIndex]->setJetPt(jetRawPt);
+  jetcorrector[foundIndex]->setJetPhi(jetPhi);
+  jetcorrector[foundIndex]->setJetE(jetE);
+  jetcorrector[foundIndex]->setRho(rho);
+  jetcorrector[foundIndex]->setJetA(jetArea);
+
+  std::vector<float> corrections;
+  corrections = jetcorrector[foundIndex]->getSubCorrections();
+
+  if (printDebug) std::cout << "Computing Jet Energy Corrections for jet with raw momentum: " << jetRawPt << " " << jetEta << " " << jetPhi << "\n";
+
+  double cumulativeCorrection = 1.0;
+  for (UInt_t j=0; j<corrections.size(); ++j) {
+
+    //only correct up to the required level. if -1, then do all correction levels
+    if (jetCorrectionLevel >= 0 && int(j) > jetCorrectionLevel) continue;
+
+    double currentCorrection = corrections.at(j)/cumulativeCorrection;
+    cumulativeCorrection = corrections.at(j);
+    if (printDebug) std::cout << "Correction Level " << j << " : current correction = " << currentCorrection << " , cumulative correction = " << cumulativeCorrection << "\n";
+  }
+  if (printDebug) std::cout << "Final Cumulative Correction: " << cumulativeCorrection << "\n";
+  
+  return cumulativeCorrection;
+
+}
+
+//Jet Energy Corrections
+double PerJetLoader::JetEnergyCorrectionFactor( double jetRawPt, double jetEta, double jetPhi, double jetE,
+             double rho, double jetArea,
+             FactorizedJetCorrector *jetcorrector,
+             int jetCorrectionLevel,
+             bool printDebug) {
+  if (!jetcorrector) {
+    std::cout << "WWARNING: Jet corrector pointer is null. Returning JEC = 0. \n";
+    return 0;
+  }
+
+  jetcorrector->setJetEta(jetEta);
+  jetcorrector->setJetPt(jetRawPt);
+  jetcorrector->setJetPhi(jetPhi);
+  jetcorrector->setJetE(jetE);
+  jetcorrector->setRho(rho);
+  jetcorrector->setJetA(jetArea);
+
+  std::vector<float> corrections;
+  corrections = jetcorrector->getSubCorrections();
+
+  if (printDebug) std::cout << "Computing Jet Energy Corrections for jet with raw momentum: " << jetRawPt << " " << jetEta << " " << jetPhi << "\n";
+
+  double cumulativeCorrection = 1.0;
+  for (UInt_t j=0; j<corrections.size(); ++j) {
+
+    //only correct up to the required level. if -1, then do all correction levels
+    if (jetCorrectionLevel >= 0 && int(j) > jetCorrectionLevel) continue;
+
+    double currentCorrection = corrections.at(j)/cumulativeCorrection;
+    cumulativeCorrection = corrections.at(j);
+    if (printDebug) std::cout << "Correction Level " << j << " : current correction = " << currentCorrection << " , cumulative correction = " << cumulativeCorrection << "\n";
+  }
+  if (printDebug) std::cout << "Final Cumulative Correction: " << cumulativeCorrection << "\n";
+  
+  return cumulativeCorrection;
+
+}
+
