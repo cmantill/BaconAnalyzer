@@ -36,3 +36,4 @@ Analyzer/production/.__afs*
 Analyzer/training/
 Analyzer/*.tgz
 *tgz
+*docker*

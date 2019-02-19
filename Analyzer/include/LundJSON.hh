@@ -55,7 +55,7 @@ inline std::ostream & lund_to_json(std::ostream & ostr, const std::vector<LundDe
 
 // helper function to write individual elements to json
 inline void lund_elements_to_json(std::ostream & ostr, const LundDeclustering & d) {
-  std::cout << " pt " << d.pair()  .pt() << std::endl;
+  //std::cout << " pt " << d.pair()  .pt() << std::endl;
   ostr << "\"p_pt\":" << d.pair()  .pt() << ",";
   ostr << "\"p_m\":"  << d.pair()  .m () << ",";
   ostr << "\"h_pt\":" << d.harder().pt() << ",";

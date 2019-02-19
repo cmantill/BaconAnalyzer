@@ -117,18 +117,18 @@ int main(int argc, char *argv[]) {
 	vector<PseudoJet> jets = cs.exclusive_jets(1);
 	
 	LundGenerator lund;
-	std::cout << lund.description() << endl;
+	//std::cout << lund.description() << endl;
 	for (unsigned int ijet = 0; ijet < jets.size(); ijet++) {
-	  std::cout << std::endl << "Lund coordinates ( ln 1/Delta, ln kt ) of declusterings of jet " 
-		    << ijet << " are:" << std::endl;
+	  //std::cout << std::endl << "Lund coordinates ( ln 1/Delta, ln kt ) of declusterings of jet " 
+	  //<< ijet << " are:" << std::endl;
 	  vector<LundDeclustering> declusts = lund(jets[ijet]);
 	  
-	  for (unsigned int idecl = 0; idecl < declusts.size(); idecl++) {
-	    pair<double,double> coords = declusts[idecl].lund_coordinates();
-	    std::cout << "(" << coords.first << ", " << coords.second << ")";
-	    if (idecl < declusts.size() - 1) std::cout << "; ";
-	  }
-	  std::cout << endl;
+	  //for (unsigned int idecl = 0; idecl < declusts.size(); idecl++) {
+	  //  pair<double,double> coords = declusts[idecl].lund_coordinates();
+	    //std::cout << "(" << coords.first << ", " << coords.second << ")";
+	    //if (idecl < declusts.size() - 1) std::cout << "; ";
+	  //}
+	  //std::cout << endl;
     
 	  // outputs the primary Lund plane
 	  lund_to_json(outfile, declusts);

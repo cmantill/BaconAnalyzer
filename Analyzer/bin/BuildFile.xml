@@ -3,7 +3,6 @@
 <use name="root"/>
 <flags CXXFLAGS="-g -Wall"/>
 <bin file="runZprime.cpp" name="runZprime"> </bin>
-<bin file="runZprimePS.cpp" name="runZprimePS"> </bin>
 <bin file="runHWW.cpp" name="runHWW"> </bin>
 <bin file="runPFJetsToJUNIPR.cpp" name="runPFJetsToJUNIPR"> </bin>
 <bin file="runPFJets.cpp"  name="runPFJets"> </bin>
