@@ -99,6 +99,7 @@ root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_188.root
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_189.root
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_19.root
+root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_190.root
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_191.root
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_192.root
 root://cmseos.fnal.gov//eos/uscms/store/group/lpcbacon/15/QCD_Pt_600to800_13TeV_pythia8_8X/QCD_Pt_600to800_TuneCUETP8M1_13TeV_pythia8/CRAB3/190215_163322/0000/Output_193.root
