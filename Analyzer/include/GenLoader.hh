@@ -10,7 +10,7 @@ using namespace baconhep;
 
 class GenLoader { 
 public:
-  GenLoader(TTree *iTree);
+  GenLoader(TTree *iTree, bool isPs=false);
   ~GenLoader();
   void reset();
   void setupTree(TTree *iTree,float iXSIn = 1);

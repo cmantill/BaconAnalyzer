@@ -7,7 +7,7 @@
 
 using namespace baconhep;
 
-GenLoader::GenLoader(TTree *iTree) { 
+GenLoader::GenLoader(TTree *iTree, bool isPs) { 
   fGenInfo  = new TGenEventInfo();
   iTree->SetBranchAddress("GenEvtInfo",       &fGenInfo);
   fGenInfoBr  = iTree->GetBranch("GenEvtInfo");
@@ -16,6 +16,11 @@ GenLoader::GenLoader(TTree *iTree) {
   iTree->SetBranchAddress("GenParticle",       &fGens);
   fGenBr  = iTree->GetBranch("GenParticle");
 
+  if(isPs) {
+    fPSWeights  = new TClonesArray("baconhep::TPSWeight");
+    iTree->SetBranchAddress("PSWeight", &fPSWeights);
+    fPSWeightBr  = iTree->GetBranch("PSWeight");
+  }
 }
 GenLoader::~GenLoader() { 
   delete fGenInfo;
@@ -23,6 +28,9 @@ GenLoader::~GenLoader() {
 
   delete fGens;
   delete fGenBr;
+
+  delete fPSWeights;
+  delete fPSWeightBr;
 }
 void GenLoader::reset() { 
   fBosonPt  = -1;
@@ -490,7 +498,7 @@ int GenLoader::isHWWsemilepBoson(int iH,int iId,int iIdDau,float &genSize){
 	lDaus.push_back(dau); lDausIndex.push_back(iD);
       }
     }
-    std::cout << "dau size "<< lDaus.size() << std::endl;
+    //std::cout << "dau size "<< lDaus.size() << std::endl;
     unsigned int lMax =4;
     if(lDaus.size()<lMax) lMax = lDaus.size();
     std::vector<TGenParticle*> lLeps,lQuarks;
@@ -654,18 +662,14 @@ float GenLoader::computeTTbarCorr() {
   return sqrt(w1*w2);
 }
 void GenLoader::setPSWeights(TTree *iTree) {
-  fPSWeights  = new TClonesArray("baconhep::TPSWeight");
-  iTree->SetBranchAddress("PSWeight", &fPSWeights);
-  fPSWeightBr  = iTree->GetBranch("PSWeight");
+  fTree = iTree;
   fgenPSWeight.clear();
   for(int i1 = 0; i1 < 20; i1++ ) {
     fgenPSWeight.push_back(-99);
   }
-  std::cout << "psweight " << fgenPSWeight.size() << std::endl;
   for(int i0 = 0; i0 < int(fgenPSWeight.size()); i0++) {
     std::stringstream pSPSWeight; pSPSWeight << "psWeight" << i0;
-    std::cout << "psweightname " << pSPSWeight.str() << " " << fgenPSWeight[i0] << std::endl;
-    iTree->Branch(pSPSWeight.str().c_str()   ,&fgenPSWeight[i0]   ,(pSPSWeight.str()+"/F").c_str());
+    fTree->Branch(pSPSWeight.str().c_str()   ,&fgenPSWeight[i0]   ,(pSPSWeight.str()+"/F").c_str());
   }
 }
 void GenLoader::loadPSWeights(int iEvent) {

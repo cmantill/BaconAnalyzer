@@ -97,8 +97,8 @@ int main( int argc, char **argv ) {
   fVJet8     = new VJetLoader    (lTree,"AK8Puppi","AddAK8Puppi",3, isData);  
   fVJet15    = new VJetLoader    (lTree,"CA15Puppi","AddCA15Puppi",3, isData);
   if(lOption.compare("data")!=0) {
-    fGen      = new GenLoader     (lTree);                 
-    if(lOption.compare("ps")==0)   fGen->setPSWeights(lTree);
+    if(lOption.compare("ps")==0) fGen      = new GenLoader     (lTree,true);
+    else fGen      = new GenLoader     (lTree);                 
   }
 
   TFile *lFile = TFile::Open(lOutput.c_str(),"RECREATE");
@@ -121,7 +121,10 @@ int main( int argc, char **argv ) {
   fElectron ->setupTree      (lOut); 
   fTau      ->setupTree      (lOut); 
   fPhoton   ->setupTree      (lOut); 
-  if(lOption.compare("data")!=0) fGen ->setupTree (lOut);
+  if(lOption.compare("data")!=0) {
+    fGen ->setupTree (lOut);
+    if(lOption.compare("ps")==0)   fGen->setPSWeights(lOut);
+  }
 
   // Loop over events i0 = iEvent
   int neventstest = 0;
