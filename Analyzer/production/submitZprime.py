@@ -182,7 +182,7 @@ samplesDict['W_9X'] = {
 samplesDict['W_10X'] = {
     'WJetsToQQ_HT400to600_qc19_3j_TuneCP5_13TeV_PS_10X': 'ps',
     'WJetsToQQ_HT600to800_qc19_3j_TuneCP5_13TeV_PS_10X': 'ps',
-    'WJetsToQQ_HT_800toInf_qc19_3j_TuneCP5_13TeV_PS_10X': 'ps',
+    'WJetsToQQ_HT-800toInf_qc19_3j_TuneCP5_13TeV_PS_10X': 'ps',
     }
 samplesDict['DY_9X'] = {
     'ZJetsToQQ_HT400to600_qc19_4j_TuneCP5_13TeV': 'mc',
@@ -192,7 +192,7 @@ samplesDict['DY_9X'] = {
 samplesDict['DY_10X'] = {
     'ZJetsToQQ_HT400to600_qc19_4j_TuneCP5_13TeV_PS_10X': 'ps',
     'ZJetsToQQ_HT600to800_qc19_4j_TuneCP5_13TeV_PS_10X': 'ps',
-    'ZJetsToQQ_HT_800toInf_qc19_4j_TuneCP5_13TeV_PS_10X': 'ps',
+    'ZJetsToQQ_HT-800toInf_qc19_4j_TuneCP5_13TeV_PS_10X': 'ps',
     }
 samplesDict['TT_8X'] = {
     'TT_TuneCUETP8M2T4_13TeV_powheg_pythia8_8X': 'mc',
@@ -237,12 +237,12 @@ samplesDict['WLNu_9X'] = {
     'WJetsToLNu_HT_2500ToInf_TuneCP5_13TeV': 'mc',
     }
 samplesDict['WLNu_10X'] = {
-    'WJetsToLNu_HT_100To200_TuneCP5_13TeV_10X': 'mc',
-    'WJetsToLNu_HT_200To400_TuneCP5_13TeV_10X': 'mc',
-    'WJetsToLNu_HT_400To600_TuneCP5_13TeV_10X': 'mc',
-    'WJetsToLNu_HT_600To800_TuneCP5_13TeV_10X': 'mc',
+    #'WJetsToLNu_HT_100To200_TuneCP5_13TeV_10X': 'mc',
+    #'WJetsToLNu_HT_200To400_TuneCP5_13TeV_10X': 'mc',
+    #'WJetsToLNu_HT_400To600_TuneCP5_13TeV_10X': 'mc',
+    #'WJetsToLNu_HT_600To800_TuneCP5_13TeV_10X': 'mc',
     'WJetsToLNu_HT_800To1200_TuneCP5_13TeV_10X': 'mc',
-    'WJetsToLNu_HT_1200To2500_TuneCP5_13TeV_10X': 'mc',
+    #'WJetsToLNu_HT_1200To2500_TuneCP5_13TeV_10X': 'mc',
     'WJetsToLNu_HT_2500ToInf_TuneCP5_13TeV_10X': 'mc',
     }
 samplesDict['DYLL_8X'] = {
