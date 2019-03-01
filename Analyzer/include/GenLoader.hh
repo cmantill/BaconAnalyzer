@@ -83,6 +83,7 @@ public:
   std::vector<std::vector<float>> fgenHDauId;  
   std::vector<std::vector<float>> fgenHDauDecay;
 
+  int fNWeights = 50; // # of weights
   std::vector<float> fgenPSWeight;
 protected: 
   TTree         *fTree;

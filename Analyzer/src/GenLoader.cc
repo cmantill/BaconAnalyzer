@@ -347,16 +347,16 @@ int GenLoader::getHadronicWInTopFlavor(TGenParticle *genp,int iW,TLorentzVector 
   int iQ=0, jQ=0;
   for (; iQ<fGens->GetEntriesFast(); ++iQ) {
     dau1 = getParticle(iQ);
-    if(dau1->parent==iWlast && abs(dau1->pdgId)<6) {
+    if( dau1->parent==iWlast && (abs(dau1->pdgId)<6 || abs(dau1->pdgId)<15)) {
       vDau1.SetPtEtaPhiM(dau1->pt, dau1->eta, dau1->phi, dau1->mass);
       wMatching = jet.DeltaR(vDau1);
       wSize     = vW.DeltaR(vDau1);
-      break; // found the first quark                                                                                                                                                                                                                       
+      break; // found the first quark                                                                                                                                            
     }
   }
   for (jQ=iQ+1; jQ<fGens->GetEntriesFast(); ++jQ) {
     dau2 = getParticle(jQ);
-    if(dau2->parent==iWlast && abs(dau2->pdgId)<6) {
+    if(dau2->parent==iWlast && (abs(dau2->pdgId)<6 || abs(dau1->pdgId)<15)) {
       vDau2.SetPtEtaPhiM(dau2->pt, dau2->eta, dau2->phi, dau2->mass);
       wMatching = TMath::Max(wMatching,jet.DeltaR(vDau2));
       wSize     = TMath::Max(wSize,vW.DeltaR(vDau2));
@@ -370,6 +370,8 @@ int GenLoader::getHadronicWInTopFlavor(TGenParticle *genp,int iW,TLorentzVector 
   int wType = 0;
   if ( std::abs(dau1->pdgId) <= 3 && std::abs(dau2->pdgId) <= 3 ) wType = 1;
   else if ( std::abs(dau1->pdgId) == 4 || std::abs(dau2->pdgId) == 4 ) wType = 2;
+  else if ( std::abs(dau1->pdgId) == 11 || std::abs(dau2->pdgId) == 11 ) wType = 3;
+  else if ( std::abs(dau1->pdgId) == 13 || std::abs(dau2->pdgId) == 13 ) wType = 4;
 
   // Check if b is in jet cone
   int iTop = genp->parent;
@@ -664,10 +666,10 @@ float GenLoader::computeTTbarCorr() {
 void GenLoader::setPSWeights(TTree *iTree) {
   fTree = iTree;
   fgenPSWeight.clear();
-  for(int i1 = 0; i1 < 20; i1++ ) {
+  for(int i1 = 0; i1 < fNWeights; i1++ ) {
     fgenPSWeight.push_back(-99);
   }
-  for(int i0 = 0; i0 < int(fgenPSWeight.size()); i0++) {
+  for(int i0 = 0; i0 < fNWeights; i0++) {
     std::stringstream pSPSWeight; pSPSWeight << "psWeight" << i0;
     fTree->Branch(pSPSWeight.str().c_str()   ,&fgenPSWeight[i0]   ,(pSPSWeight.str()+"/F").c_str());
   }
@@ -677,7 +679,7 @@ void GenLoader::loadPSWeights(int iEvent) {
   fPSWeightBr   ->GetEntry(iEvent);
 }
 void GenLoader::fillPSWeights(){
-  for(int i1 = 0; i1 < int(fgenPSWeight.size()); i1++) {
+  for(int i1 = 0; i1 < fNWeights; i1++) {
     TPSWeight *psweight = (TPSWeight*)((*fPSWeights)[i1]);
     fgenPSWeight[i1] = psweight->weight;
   }
