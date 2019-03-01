@@ -70,11 +70,11 @@ if __name__ == '__main__':
         execPython = 'baconCondor.py'
         EOS = ''#eos root://cmseos.fnal.gov'
         optionsDataMc = {
-            'rereco16': "-a 2:Output.dat -a 3:0 -a 4:data -n 8000 --njobs-per-file %d --nfiles-per-job %d"%(options.njobs_per_file,options.nfiles_per_job),
+            'rereco16': "-a 2:Output.root -a 3:0 -a 4:data -n 8000 --njobs-per-file %d --nfiles-per-job %d"%(options.njobs_per_file,options.nfiles_per_job),
             }
 
     exec_me('%s mkdir -p /eos/uscms/%s/%s'%(EOS,eosOutDir,analysisDir))  
     for label, isMc in samples.iteritems():
         exec_me('%s mkdir -p /eos/uscms/%s/%s/%s'%(EOS,eosOutDir,analysisDir,label))
         listLabel = '../lists/production%s/%s.txt'%(options.production,label)
-        exec_me("python %s %s %s --list 1:%s --outdir $PWD/../%s/%s_%s --eosoutdir %s/%s/%s --dat %s"%(execPython,executable,optionsDataMc[isMc],listLabel,analysisDir,label,isMc,eosOutDir,analysisDir,label,monitorOption),options.dryRun)
+        exec_me("python %s %s %s --list 1:%s --outdir $PWD/../%s/%s_%s --eosoutdir %s/%s/%s %s"%(execPython,executable,optionsDataMc[isMc],listLabel,analysisDir,label,isMc,eosOutDir,analysisDir,label,monitorOption),options.dryRun)
