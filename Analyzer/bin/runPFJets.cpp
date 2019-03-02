@@ -58,7 +58,8 @@ int main(int argc, char *argv[]) {
   stringstream s_infile;
   s_infile << input_file;
 
-  TFile *lFile = TFile::Open("Output.root","RECREATE");
+  //TFile *lFile = TFile::Open("Output.root","RECREATE");
+  TFile *lFile = TFile::Open(output_file.c_str(),"RECREATE");
   TTree *lOut  = new TTree("Events","Events");
 
   stringstream s_outfile;
