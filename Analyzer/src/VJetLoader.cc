@@ -58,10 +58,15 @@ void VJetLoader::resetDoubleB() {
   selectedVJetsByDoubleB.clear();
 }
 void VJetLoader::resetZprime() {
-  fvSize              = -999;
-  fvMatching          = -999;
-  fisHadronicV        = 0;
-  fRatioPt =0;
+  fisHadronicV.clear();
+  fvMatching.clear();
+  fvSize.clear();
+  fpartonFlavor.clear();
+  fhadronFlavor.clear();
+  fnCharged.clear();
+  fnNeutrals.clear();
+  fnParticles.clear();
+  fRatioPt.clear();
 }
 void VJetLoader::setupTree(TTree *iTree, std::string iJetLabel, bool iHWW) { 
   reset();
@@ -185,26 +190,39 @@ void VJetLoader::setupTree(TTree *iTree, std::string iJetLabel, bool iHWW) {
 }
 void VJetLoader::setupTreeZprime(TTree *iTree, std::string iJetLabel) {
   resetZprime();
-  std::stringstream pSiV;   pSiV << iJetLabel << "0_isHadronicV";
-  std::stringstream pSVM;   pSVM << iJetLabel << "0_vMatching";
-  std::stringstream pSVS;   pSVS << iJetLabel << "0_vSize";
-  std::stringstream pSpF;   pSpF << iJetLabel << "0_partonFlavor";
-  std::stringstream pShF;   pShF << iJetLabel << "0_hadronFlavor";
-  std::stringstream pSnC;   pSnC << iJetLabel << "0_nCharged";
-  std::stringstream pSnN;   pSnN << iJetLabel << "0_nNeutrals";
-  std::stringstream pSnP;   pSnP << iJetLabel << "0_nParticles";
-  std::stringstream pSratio; pSratio << iJetLabel << "0_ratioCA15_04";
-
+  for(int i0 = 0; i0 < fN; i0++) {
+    double pVar = -1; 
+    fisHadronicV.push_back(pVar);
+    fvMatching.push_back(pVar);
+    fvSize.push_back(pVar);
+    fpartonFlavor.push_back(pVar);
+    fhadronFlavor.push_back(pVar);
+    fnCharged.push_back(pVar);
+    fnNeutrals.push_back(pVar);
+    fnParticles.push_back(pVar);
+  }
   fTree = iTree;
-  fTree->Branch(pSiV.str().c_str() ,&fisHadronicV         ,(pSiV.str()+"/I").c_str());
-  fTree->Branch(pSVM.str().c_str() ,&fvMatching           ,(pSVM.str()+"/D").c_str());
-  fTree->Branch(pSVS.str().c_str() ,&fvSize               ,(pSVS.str()+"/D").c_str());
-  fTree->Branch(pSpF.str().c_str() ,&fpartonFlavor        ,(pSpF.str()+"/I").c_str());
-  fTree->Branch(pShF.str().c_str() ,&fhadronFlavor        ,(pShF.str()+"/I").c_str());
-  fTree->Branch(pSnC.str().c_str() ,&fnCharged            ,(pSnC.str()+"/I").c_str());
-  fTree->Branch(pSnN.str().c_str() ,&fnNeutrals           ,(pSnN.str()+"/I").c_str());
-  fTree->Branch(pSnP.str().c_str() ,&fnParticles          ,(pSnP.str()+"/I").c_str());
-  fTree->Branch(pSratio.str().c_str() ,&fRatioPt          ,(pSratio.str()+"/D").c_str());
+  for(int i0 = 0; i0 < fN;                    i0++) {
+    std::stringstream pSiV;   pSiV << iJetLabel << i0 << "_isHadronicV";
+    std::stringstream pSVM;   pSVM << iJetLabel << i0 << "_vMatching";
+    std::stringstream pSVS;   pSVS << iJetLabel << i0 << "_vSize";
+    std::stringstream pSpF;   pSpF << iJetLabel << i0 << "_partonFlavor";
+    std::stringstream pShF;   pShF << iJetLabel << i0 << "_hadronFlavor";
+    std::stringstream pSnC;   pSnC << iJetLabel << i0 << "_nCharged";
+    std::stringstream pSnN;   pSnN << iJetLabel << i0 << "_nNeutrals";
+    std::stringstream pSnP;   pSnP << iJetLabel << i0 << "_nParticles";
+    std::stringstream pSratio; pSratio << iJetLabel << i0 << "_ratioCA15_04";
+
+    fTree->Branch(pSiV.str().c_str() ,&fisHadronicV[i0]     ,(pSiV.str()+"/I").c_str());
+    fTree->Branch(pSVM.str().c_str() ,&fvMatching[i0]       ,(pSVM.str()+"/D").c_str());
+    fTree->Branch(pSVS.str().c_str() ,&fvSize[i0]           ,(pSVS.str()+"/D").c_str());
+    fTree->Branch(pSpF.str().c_str() ,&fpartonFlavor[i0]    ,(pSpF.str()+"/I").c_str());
+    fTree->Branch(pShF.str().c_str() ,&fhadronFlavor[i0]    ,(pShF.str()+"/I").c_str());
+    fTree->Branch(pSnC.str().c_str() ,&fnCharged[i0]        ,(pSnC.str()+"/I").c_str());
+    fTree->Branch(pSnN.str().c_str() ,&fnNeutrals[i0]       ,(pSnN.str()+"/I").c_str());
+    fTree->Branch(pSnP.str().c_str() ,&fnParticles[i0]      ,(pSnP.str()+"/I").c_str());
+  }
+
 }
 void VJetLoader::load(int iEvent) { 
   fVJets       ->Clear();
@@ -507,11 +525,11 @@ void VJetLoader::fillVJet(int iN,std::vector<TJet*> &iObjects,std::vector<double
       iN = iN+3;
       }*/
 
-    fpartonFlavor   = iObjects[0]->partonFlavor;
-    fhadronFlavor   = iObjects[0]->hadronFlavor;
-    fnCharged       = iObjects[0]->nCharged;
-    fnNeutrals      = iObjects[0]->nNeutrals;
-    fnParticles     = iObjects[0]->nParticles;
+    fpartonFlavor[i0]   = iObjects[i0]->partonFlavor;
+    fhadronFlavor[i0]   = iObjects[i0]->hadronFlavor;
+    fnCharged[i0]       = iObjects[i0]->nCharged;
+    fnNeutrals[i0]      = iObjects[i0]->nNeutrals;
+    fnParticles[i0]     = iObjects[i0]->nParticles;
 
   }
 }
@@ -539,9 +557,9 @@ void VJetLoader::matchJet15(std::vector<TLorentzVector> iJets1, TLorentzVector i
       mindR= iJets1[i0].DeltaR(iJet2);
     }
   }
-  if (nmatched >0 && (iJet1.DeltaR(iJet2) < dR)){
-    fRatioPt = iJet2.Pt()/iJet1.Pt();
-  }
+  //if (nmatched >0 && (iJet1.DeltaR(iJet2) < dR)){
+  //  fRatioPt = iJet2.Pt()/iJet1.Pt();
+  //}
 }
 TAddJet *VJetLoader::getAddJet(TJet *iJet) { 
   int lIndex = -1;

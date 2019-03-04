@@ -99,6 +99,7 @@ int main( int argc, char **argv ) {
   // Setup Tree
   fEvt      ->setupTree      (lOut);
   fVJet8    ->setupTree      (lOut,"AK8Puppijet",true); // Hww
+  fVJet8    ->setupTreeZprime(lOut,"AK8Puppijet");
   fJet4     ->setupTree      (lOut,"AK4Puppijet");
   fMuon     ->setupTree      (lOut);
   fElectron ->setupTree      (lOut);
@@ -204,20 +205,26 @@ int main( int argc, char **argv ) {
     fJet4     ->selectJets(cleaningElectrons,cleaningMuons,cleaningPhotons,fVJet8->selectedVJets,fEvt->fRho,fEvt->fRun);
 
     // Gen matching
+    int iGen = 0;
     if(lName.find("WJets")!=std::string::npos){
       fGen->findBoson(24,1);
       if(fGen->fBosonPt>0)      fEvt->computeCorr(fGen->fBosonPt,"WJets_012j_NLO/nominal","WJets_LO/inv_pt","EWKcorr/W","WJets_012j_NLO");
-      if(fVJet8->selectedVJets.size()>0)  fVJet8->fisHadronicV = fGen->ismatchedJet(fVJet8->selectedVJets[0],0.8,fVJet8->fvMatching,fVJet8->fvSize,24);
+      iGen = 24;
     }
     if(lName.find("TT_")!=std::string::npos || lName.find("TTTo")!=std::string::npos){
       float ttbarPtWeight = fGen->computeTTbarCorr();
       fEvt->fevtWeight *= ttbarPtWeight;
       fGen->fWeight *= ttbarPtWeight;
       fGen->saveTTbarType();
-      if(fVJet8->selectedVJets.size()>0) fVJet8->fisHadronicV = fGen->ismatchedJet(fVJet8->selectedVJets[0],0.8,fVJet8->fvMatching,fVJet8->fvSize,624);
+      iGen = 624;
     }
     if(lName.find("ST_")!=std::string::npos){
-      if(fVJet8->selectedVJets.size()>0) fVJet8->fisHadronicV = fGen->ismatchedJet(fVJet8->selectedVJets[0],0.8,fVJet8->fvMatching,fVJet8->fvSize,624);
+      iGen = 624;
+    }
+    if(iGen!=0) {
+      for(int i0 = 0; i0 < int(fVJet8->selectedVJets.size()); i0++) {
+        fVJet8->fisHadronicV[i0] = fGen->ismatchedJet(fVJet8->selectedVJets[i0],0.8,fVJet8->fvMatching[i0],fVJet8->fvSize[i0],iGen);
+      }
     }
 
     lOut->Fill();

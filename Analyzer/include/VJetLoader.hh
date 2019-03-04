@@ -38,10 +38,9 @@ public:
   void fillJetCorr(int iN,std::vector<TJet*> &iObjects,std::vector<double> &iVals, double iRho, unsigned int runNum);
   TAddJet *getAddJet(TJet *iJet);
 
-  double fvSize, fvMatching,fRatioPt;
-  int fisHadronicV;
-  std::vector<int> fisTightVJet, fisMatchedVJet;
-  int fpartonFlavor, fhadronFlavor, fnbHadrons, fncHadrons, fnCharged, fnNeutrals, fnParticles;
+  std::vector<double> fvSize, fvMatching,fRatioPt;
+  std::vector<int> fisHadronicV, fisTightVJet, fisMatchedVJet;
+  std::vector<int> fpartonFlavor, fhadronFlavor, fnbHadrons, fncHadrons, fnCharged, fnNeutrals, fnParticles;
 
   std::vector<TJet*> fLooseVJets;
   std::vector<TLorentzVector> selectedVJets;
