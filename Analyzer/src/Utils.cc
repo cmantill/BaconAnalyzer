@@ -379,6 +379,32 @@ extern double phoEffArea(const double eta, const int type)
 // MUONS
 // https://twiki.cern.ch/twiki/bin/view/CMS/SWGuideMuonIdRun2 
 //-------------------------------------------------------------------------------------------------
+bool passMuonLooseId(const baconhep::TMuon *muon)
+{
+  if(!(muon->pogIDBits & baconhep::kPOGLooseMuon)) return false;
+  return true;
+}
+bool passMuonMediumId(const baconhep::TMuon *muon)
+{
+  if(!(muon->pogIDBits & baconhep::kPOGMediumMuon)) return false;
+  return true;
+}
+bool passMuonTightId(const baconhep::TMuon *muon)
+{
+  if(!(muon->pogIDBits & baconhep::kPOGTightMuon)) return false;
+  return true;
+}
+bool passMuonSoftId(const baconhep::TMuon *muon)
+{
+  if(!(muon->pogIDBits & baconhep::kPOGSoftMuon)) return false;
+  return true;
+}
+bool passMuonHighPtId(const baconhep::TMuon *muon)
+{
+  if(!(muon->pogIDBits & baconhep::kPOGHighPtMuon)) return false;
+  return true;
+}
+//-------------------------------------------------------------------------------------------------
 bool passMuonLooseSel(const baconhep::TMuon *muon)
 {
   if(!(muon->pogIDBits & baconhep::kPOGLooseMuon)) return false;

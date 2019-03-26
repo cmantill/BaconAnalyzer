@@ -32,6 +32,7 @@ public:
 
   const double MUON_MASS = 0.105658369;
 
+  std::vector<int> fmuId, fmuSel;
 protected: 
   TClonesArray *fMuons;
   TBranch      *fMuonBr;

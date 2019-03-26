@@ -41,6 +41,14 @@ void GenLoader::reset() {
   genEleFromW = -1;
   genMuFromW = -1;
   genTauFromW = -1;
+  fgenbPt = -999;
+  fgenbEta = -999;
+  fgenbPhi = -999;
+  fgenbMass = -999;
+  fgenlPt = -999;
+  fgenlEta = -999;
+  fgenlPhi = -999;
+  fgenlId = -999;
   fTopPt = -1;
   fAntitopPt = -1;
   fTopPtWeight = -1;
@@ -56,6 +64,14 @@ void GenLoader::setupTree(TTree *iTree,float iXSIn) {
   fTree->Branch("genEleFromW"    ,&genEleFromW  ,"genEleFromW/I");
   fTree->Branch("genMuFromW"    ,&genMuFromW  ,"genMuFromW/I");
   fTree->Branch("genTauFromW"    ,&genTauFromW  ,"genTauFromW/I");
+  fTree->Branch("genbPt"     ,&fgenbPt   ,"fgenbPt/F");
+  fTree->Branch("genbPhi"    ,&fgenbPhi  ,"fgenbPhi/F");
+  fTree->Branch("genbMass"    ,&fgenbMass  ,"fgenbMass/F");
+  fTree->Branch("genbEta"    ,&fgenbEta  ,"fgenbEta/F");
+  fTree->Branch("genlPt"     ,&fgenlPt   ,"fgenlPt/F");
+  fTree->Branch("genlPhi"    ,&fgenlPhi  ,"fgenlPhi/F");
+  fTree->Branch("genlId"    ,&fgenlId  ,"fgenlId/I");
+  fTree->Branch("genlEta"    ,&fgenlEta  ,"fgenlEta/F");
   fTree->Branch("topPt"     ,&fTopPt   ,"fTopPt/F");
   fTree->Branch("antitopPt"     ,&fAntitopPt   ,"fAntitopPt/F");
   fTree->Branch("topPtWeight"     ,&fTopPtWeight   ,"fTopPtWeight/F");
@@ -340,6 +356,7 @@ int GenLoader::getHadronicWInTopFlavor(TGenParticle *genp,int iW,TLorentzVector 
   TLorentzVector vW,vDau1,vDau2,b;
   TGenParticle *dau1{nullptr};
   TGenParticle *dau2{nullptr};
+  TGenParticle *glep{nullptr};
 
   vW.SetPtEtaPhiM(genp->pt, genp->eta, genp->phi, genp->mass);
   int iWlast = findLastParent(iW, 24);
@@ -373,6 +390,13 @@ int GenLoader::getHadronicWInTopFlavor(TGenParticle *genp,int iW,TLorentzVector 
   else if ( std::abs(dau1->pdgId) == 11 || std::abs(dau2->pdgId) == 11 ) wType = 3;
   else if ( std::abs(dau1->pdgId) == 13 || std::abs(dau2->pdgId) == 13 ) wType = 4;
 
+  // save gen info
+  if ( std::abs(dau1->pdgId) == 11 || std::abs(dau1->pdgId) == 13 ) glep = dau1;
+  if ( std::abs(dau2->pdgId) == 11 || std::abs(dau2->pdgId) == 13 ) glep = dau2;
+  if ( glep != nullptr ) {
+    fgenlPt = glep->pt; fgenlPhi = glep->phi; fgenlId = glep->pdgId; fgenlEta =glep->eta;
+  }
+
   // Check if b is in jet cone
   int iTop = genp->parent;
   while ( std::abs(getParticle(iTop)->pdgId) == 24 ) {
@@ -388,6 +412,9 @@ int GenLoader::getHadronicWInTopFlavor(TGenParticle *genp,int iW,TLorentzVector 
       }
     }
     if ( genB == nullptr ) return -1;
+    if ( glep != nullptr ) { //save b only for lep W
+      fgenbPt = genB->pt;fgenbPhi = genB->phi; fgenbMass =genB->mass; fgenbEta =genB->eta;
+    }
     b.SetPtEtaPhiM(genB->pt, genB->eta, genB->phi, genB->mass);
     if ( b.DeltaR(jet) < dR ) wType += 8;
   }

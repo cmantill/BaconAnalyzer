@@ -65,11 +65,9 @@ public:
   float fAntitopPt;
   float fTopPtWeight;
 
-  float fGenPt;
-  float fGenEta;
-  float fGenPhi;
-  float fGenSize;
-  float fGenPdgId;
+  float fgenbPt,fgenbPhi,fgenbMass,fgenbEta;
+  float fgenlPt,fgenlPhi,fgenlEta;
+  int fgenlId;
 
   std::vector<float> fgenHPt;
   std::vector<float> fgenHEta;
