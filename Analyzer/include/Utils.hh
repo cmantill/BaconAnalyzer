@@ -31,6 +31,11 @@ bool   passPhoMediumSel       (const baconhep::TPhoton *photon, const double rho
 bool   passPhoTightSel        (const baconhep::TPhoton *photon, const double rho);
 double eleEffArea             (const double eta);
 double phoEffArea             (const double eta, const int type);
+bool   passMuonLooseId        (const baconhep::TMuon *muon);
+bool   passMuonMediumId       (const baconhep::TMuon *muon);
+bool   passMuonTightId        (const baconhep::TMuon *muon);
+bool   passMuonSoftId         (const baconhep::TMuon *muon);
+bool   passMuonHighPtId       (const baconhep::TMuon *muon);
 bool   passMuonLooseSel       (const baconhep::TMuon *muon);
 bool   passMuonMediumSel      (const baconhep::TMuon *muon);
 bool   passMuonTightSel       (const baconhep::TMuon *muon);
